@@ -59,7 +59,7 @@ interface CacheEntry {
  * @param config - AI provider configuration
  * @returns An AIProvider implementation
  */
-export function createAIJudge(config: AIProviderConfig): AIProvider {
+export function createAIJudge(_config: AIProviderConfig): AIProvider {
   // TODO: Implement AI provider based on config.type
   //
   // IMPLEMENTATION STEPS:
@@ -91,7 +91,7 @@ export function createAIJudge(config: AIProviderConfig): AIProvider {
  * @param config - Configuration with API key and model
  * @returns AIProvider using OpenAI
  */
-export function createOpenAIProvider(config: AIProviderConfig): AIProvider {
+export function createOpenAIProvider(_config: AIProviderConfig): AIProvider {
   // TODO: Implement OpenAI provider
   //
   // IMPLEMENTATION:

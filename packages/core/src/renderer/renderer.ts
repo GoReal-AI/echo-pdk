@@ -22,7 +22,6 @@
 
 import type { ASTNode, VariableNode, TextNode, EchoConfig } from '../types.js';
 import { resolveVariable } from '../evaluator/evaluator.js';
-import { visitNode, type ASTVisitor } from '../parser/ast.js';
 
 // =============================================================================
 // TYPES
@@ -207,9 +206,9 @@ function collapseNewlines(text: string): string {
  * @returns The rendered string
  */
 export async function renderTemplate(
-  template: string,
-  context: Record<string, unknown>,
-  config: EchoConfig = {}
+  _template: string,
+  _context: Record<string, unknown>,
+  _config: EchoConfig = {}
 ): Promise<string> {
   // TODO: Implement full pipeline
   //

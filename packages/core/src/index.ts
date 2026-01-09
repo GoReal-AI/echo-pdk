@@ -75,7 +75,7 @@ import type {
  * const result = await echo.render(template, { name: 'Alice' });
  * ```
  */
-export function createEcho(config: EchoConfig = {}): Echo {
+export function createEcho(_config: EchoConfig = {}): Echo {
   // TODO: Implementation
   //
   // IMPLEMENTATION STEPS:
@@ -92,7 +92,7 @@ export function createEcho(config: EchoConfig = {}): Echo {
 
   // Placeholder implementation - replace with actual implementation
   const echo: Echo = {
-    parse(template: string): ParseResult {
+    parse(_template: string): ParseResult {
       // TODO: Implement using lexer and parser
       // 1. Tokenize with lexer
       // 2. Parse tokens into AST
@@ -101,8 +101,8 @@ export function createEcho(config: EchoConfig = {}): Echo {
     },
 
     async render(
-      template: string,
-      context: Record<string, unknown>
+      _template: string,
+      _context: Record<string, unknown>
     ): Promise<string> {
       // TODO: Implement full render pipeline
       // 1. Parse template to AST
@@ -113,7 +113,7 @@ export function createEcho(config: EchoConfig = {}): Echo {
       throw new Error('Not implemented: render()');
     },
 
-    validate(template: string): ValidationResult {
+    validate(_template: string): ValidationResult {
       // TODO: Implement validation
       // 1. Parse template
       // 2. Check for undefined variables (if context schema available)
@@ -123,7 +123,7 @@ export function createEcho(config: EchoConfig = {}): Echo {
       throw new Error('Not implemented: validate()');
     },
 
-    loadLanguage(yamlPath: string): void {
+    loadLanguage(_yamlPath: string): void {
       // TODO: Implement language loading
       // 1. Read YAML file
       // 2. Parse language definition

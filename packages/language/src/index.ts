@@ -174,7 +174,7 @@ export function getAutocompleteTriggers(
     description: string;
   }> = [];
 
-  for (const [name, op] of Object.entries(lang.operators)) {
+  for (const [_name, op] of Object.entries(lang.operators)) {
     if (op.autocomplete) {
       triggers.push({
         trigger: op.autocomplete.trigger,
@@ -199,15 +199,6 @@ export function getValidationRules(
 // =============================================================================
 // EXPORTS
 // =============================================================================
-
-// Re-export types
-export type {
-  LanguageDefinition,
-  LanguageOperator,
-  SyntaxPattern,
-  ValidationRule,
-  OperatorType,
-};
 
 // Export path to language files for direct access
 export const LANGUAGE_FILE_PATH = join(packageDir, 'echo.lang.yaml');

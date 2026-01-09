@@ -86,7 +86,7 @@ export async function loadPlugin(
  * @param path - Path to the plugin
  */
 export async function loadPluginFromPath(
-  registry: PluginRegistry,
+  _registry: PluginRegistry,
   path: string
 ): Promise<void> {
   // TODO: Implement plugin loading from path

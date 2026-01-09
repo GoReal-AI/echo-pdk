@@ -22,7 +22,7 @@
  * - #ai_judge(question) - LLM-evaluated condition
  */
 
-import type { OperatorDefinition, OperatorHandler } from '../types.js';
+import type { OperatorDefinition } from '../types.js';
 
 // =============================================================================
 // COMPARISON OPERATORS
@@ -269,7 +269,7 @@ export const aiJudgeOperator: OperatorDefinition = {
     trigger: '#ai',
     snippet: '#ai_judge($1)',
   },
-  handler: async (value: unknown, question: unknown): Promise<boolean> => {
+  handler: async (_value: unknown, _question: unknown): Promise<boolean> => {
     // TODO: Implement AI judge
     //
     // IMPLEMENTATION STEPS:

@@ -67,7 +67,7 @@
  */
 
 import { CstParser, type IToken } from 'chevrotain';
-import type { ASTNode, ParseResult, EchoError, SourceLocation } from '../types.js';
+import type { ParseResult, SourceLocation } from '../types.js';
 import {
   allTokens,
   Text,
@@ -290,31 +290,29 @@ const BaseCstVisitor = parserInstance.getBaseCstVisitorConstructor();
  * CST to AST Visitor
  *
  * Transforms the Concrete Syntax Tree into our Abstract Syntax Tree.
+ *
+ * TODO: Implement visitor methods for each rule:
+ * - template(ctx): ASTNode[]
+ * - node(ctx): ASTNode
+ * - textNode(ctx): TextNode
+ * - variableNode(ctx): VariableNode
+ * - conditionalNode(ctx): ConditionalNode
+ * - condition(ctx): ConditionExpr
+ * - sectionNode(ctx): SectionNode
+ * - importNode(ctx): ImportNode
+ * - includeNode(ctx): IncludeNode
+ *
+ * Example implementation:
+ * class EchoAstVisitor extends BaseCstVisitor {
+ *   constructor() {
+ *     super();
+ *     this.validateVisitor();
+ *   }
+ *   template(ctx) { return []; }
+ * }
+ * const astVisitor = new EchoAstVisitor();
  */
-class EchoAstVisitor extends BaseCstVisitor {
-  constructor() {
-    super();
-    this.validateVisitor();
-  }
-
-  template(ctx: Record<string, unknown>): ASTNode[] {
-    // TODO: Implement CST to AST transformation
-    // Visit each node child and collect results
-    return [];
-  }
-
-  // TODO: Implement visitor methods for each rule:
-  // - node(ctx): ASTNode
-  // - textNode(ctx): TextNode
-  // - variableNode(ctx): VariableNode
-  // - conditionalNode(ctx): ConditionalNode
-  // - condition(ctx): ConditionExpr
-  // - sectionNode(ctx): SectionNode
-  // - importNode(ctx): ImportNode
-  // - includeNode(ctx): IncludeNode
-}
-
-const astVisitor = new EchoAstVisitor();
+void BaseCstVisitor; // Reference to prevent unused warning
 
 // =============================================================================
 // PUBLIC API
@@ -326,7 +324,7 @@ const astVisitor = new EchoAstVisitor();
  * @param template - The Echo template string
  * @returns ParseResult with AST or errors
  */
-export function parse(template: string): ParseResult {
+export function parse(_template: string): ParseResult {
   // TODO: Implement parsing
   //
   // 1. Tokenize the input

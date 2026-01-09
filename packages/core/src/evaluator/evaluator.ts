@@ -29,10 +29,9 @@ import type {
   ConditionExpr,
   EchoConfig,
   OperatorDefinition,
-  SourceLocation,
 } from '../types.js';
-import { collectAiJudgeConditions, visitNode, type ASTVisitor } from '../parser/ast.js';
-import { builtinOperators, getOperator, isAsyncOperator } from './operators.js';
+import { collectAiJudgeConditions } from '../parser/ast.js';
+import { getOperator } from './operators.js';
 
 // =============================================================================
 // TYPES
