@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://echo-pdk.dev/schemas/echo.config.schema.json",
+  "title": "Echo Configuration",
+  "description": "Configuration schema for Echo PDK projects",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "string",
+      "description": "Configuration version",
+      "enum": ["1.0"]
+    },
+    "language": {
+      "type": "object",
+      "description": "Language configuration",
+      "properties": {
+        "base": {
+          "type": "string",
+          "description": "Base language definition (npm package or path)",
+          "default": "@echo-pdk/language"
+        },
+        "strict": {
+          "type": "boolean",
+          "description": "Fail on any error (vs warn and continue)",
+          "default": false
+        }
+      }
+    },
+    "plugins": {
+      "type": "array",
+      "description": "List of plugins to load",
+      "items": {
+        "type": "string"
+      },
+      "examples": [
+        ["@echo-pdk/validators", "./plugins/my-plugin.ts"]
+      ]
+    },
+    "ai": {
+      "type": "object",
+      "description": "AI provider configuration for #ai_judge",
+      "properties": {
+        "provider": {
+          "type": "string",
+          "description": "AI provider type",
+          "enum": ["openai", "anthropic"]
+        },
+        "model": {
+          "type": "string",
+          "description": "Model to use (defaults to provider's default)"
+        },
+        "timeout": {
+          "type": "number",
+          "description": "Timeout in milliseconds for AI calls",
+          "default": 5000
+        }
+      }
+    },
+    "output": {
+      "type": "object",
+      "description": "Output configuration",
+      "properties": {
+        "trimWhitespace": {
+          "type": "boolean",
+          "description": "Trim leading/trailing whitespace from output",
+          "default": false
+        },
+        "collapseNewlines": {
+          "type": "boolean",
+          "description": "Collapse multiple newlines into one",
+          "default": false
+        }
+      }
+    },
+    "validation": {
+      "type": "object",
+      "description": "Validation configuration",
+      "properties": {
+        "rules": {
+          "type": "object",
+          "description": "Override validation rule severity",
+          "additionalProperties": {
+            "type": "string",
+            "enum": ["off", "warning", "error"]
+          }
+        }
+      }
+    }
+  },
+  "additionalProperties": false
+}

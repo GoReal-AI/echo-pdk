@@ -1,0 +1,258 @@
+# =============================================================================
+# Echo Language Definition
+# =============================================================================
+# This file defines the Echo DSL syntax and semantics.
+# It is designed to be consumed by:
+# - The Echo compiler/renderer (@echo-pdk/core)
+# - IDE integrations (autocomplete, linting, syntax highlighting)
+# - Documentation generators
+# =============================================================================
+
+name: echo
+version: 1.0.0
+description: "Echo - Dynamic Prompt Templating Language"
+fileExtensions:
+  - ".echo"
+  - ".echo.md"
+
+# =============================================================================
+# SYNTAX PATTERNS
+# =============================================================================
+# These patterns define how Echo syntax is recognized.
+# IDEs use these for syntax highlighting and tokenization.
+
+syntax:
+  # Variable reference: {{variable}} or {{var ?? "default"}}
+  variable:
+    pattern: "\\{\\{([^}]+)\\}\\}"
+    captures:
+      1: variable.name
+    description: "Variable substitution"
+    examples:
+      - "{{name}}"
+      - "{{user.email}}"
+      - "{{count ?? 0}}"
+
+  # Conditional blocks
+  conditional:
+    open: "[#IF"
+    close: "[END IF]"
+    elseIf: "[ELSE IF"
+    else: "[ELSE]"
+    description: "Conditional rendering block"
+    examples:
+      - "[#IF {{role}} #equals(admin)]...[END IF]"
+      - "[#IF {{x}}][ELSE IF {{y}}][ELSE][END IF]"
+
+  # Section definitions
+  section:
+    open: "[#SECTION"
+    close: "[END SECTION]"
+    attributes:
+      - name: "name"
+        required: true
+        type: "string"
+    description: "Reusable section definition"
+    examples:
+      - "[#SECTION name=\"header\"]...[END SECTION]"
+
+  # Import directive
+  import:
+    pattern: "\\[#IMPORT\\s+([^\\]]+)\\]"
+    captures:
+      1: import.path
+    description: "Import another Echo template"
+    examples:
+      - "[#IMPORT ./sections/header.echo]"
+      - "[#IMPORT @echo-pdk/common/disclaimer]"
+
+  # Include directive
+  include:
+    pattern: "\\[#INCLUDE\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\]"
+    captures:
+      1: include.name
+    description: "Include a defined section"
+    examples:
+      - "[#INCLUDE header]"
+      - "[#INCLUDE system_prompt]"
+
+# =============================================================================
+# OPERATORS
+# =============================================================================
+# Operators are used in conditions: [#IF {{var}} #operator(arg)]
+# Each operator has:
+# - type: comparison (takes arg), unary (no arg), or ai (async)
+# - signature: TypeScript-style type signature
+# - description: Human-readable description
+# - example: Usage example
+# - autocomplete: IDE autocomplete configuration
+
+operators:
+  # Comparison operators
+  equals:
+    type: comparison
+    signature: "(value: string | number) => boolean"
+    description: "Exact equality check (case-insensitive for strings)"
+    example: "{{genre}} #equals(Horror)"
+    autocomplete:
+      trigger: "#eq"
+      snippet: "#equals($1)"
+
+  contains:
+    type: comparison
+    signature: "(value: string) => boolean"
+    description: "Check if string or array contains value"
+    example: "{{companions}} #contains(Shimon)"
+    autocomplete:
+      trigger: "#con"
+      snippet: "#contains($1)"
+
+  matches:
+    type: comparison
+    signature: "(pattern: regex) => boolean"
+    description: "Regex pattern matching"
+    example: "{{email}} #matches(.*@.*\\.com)"
+    autocomplete:
+      trigger: "#mat"
+      snippet: "#matches($1)"
+
+  in:
+    type: comparison
+    signature: "(...values: string[]) => boolean"
+    description: "Check if value is in a comma-separated list"
+    example: "{{status}} #in(active,pending,completed)"
+    autocomplete:
+      trigger: "#in"
+      snippet: "#in($1)"
+
+  # Numeric operators
+  gt:
+    type: comparison
+    signature: "(n: number) => boolean"
+    description: "Greater than comparison"
+    example: "{{age}} #gt(18)"
+    autocomplete:
+      trigger: "#gt"
+      snippet: "#gt($1)"
+
+  gte:
+    type: comparison
+    signature: "(n: number) => boolean"
+    description: "Greater than or equal comparison"
+    example: "{{score}} #gte(50)"
+    autocomplete:
+      trigger: "#gte"
+      snippet: "#gte($1)"
+
+  lt:
+    type: comparison
+    signature: "(n: number) => boolean"
+    description: "Less than comparison"
+    example: "{{count}} #lt(10)"
+    autocomplete:
+      trigger: "#lt"
+      snippet: "#lt($1)"
+
+  lte:
+    type: comparison
+    signature: "(n: number) => boolean"
+    description: "Less than or equal comparison"
+    example: "{{retries}} #lte(3)"
+    autocomplete:
+      trigger: "#lte"
+      snippet: "#lte($1)"
+
+  # Unary operators
+  exists:
+    type: unary
+    signature: "() => boolean"
+    description: "Check if variable is defined and not empty"
+    example: "{{user.preferences}} #exists"
+    autocomplete:
+      trigger: "#ex"
+      snippet: "#exists"
+
+  # AI operators
+  ai_judge:
+    type: ai
+    signature: "(question: string) => boolean"
+    description: "LLM-evaluated boolean condition"
+    example: "{{content}} #ai_judge(Is this appropriate for children?)"
+    config:
+      cacheResults: true
+      timeout: 5000
+      model: null  # Use default from config
+    autocomplete:
+      trigger: "#ai"
+      snippet: "#ai_judge($1)"
+
+# =============================================================================
+# VALIDATION RULES
+# =============================================================================
+# Rules for linting and validation.
+
+validation:
+  undefinedVariables:
+    level: error
+    description: "Flag undefined variable references"
+    message: "Undefined variable: {{name}}"
+
+  unclosedBlocks:
+    level: error
+    description: "Flag unclosed [#IF] or [#SECTION] blocks"
+    message: "Unclosed block starting at line {{line}}"
+
+  unknownOperators:
+    level: error
+    description: "Flag unknown #operators"
+    message: "Unknown operator: #{{name}}"
+
+  unusedSections:
+    level: warning
+    description: "Warn about sections that are never included"
+    message: "Section '{{name}}' is defined but never included"
+
+  deprecatedSyntax:
+    level: warning
+    description: "Warn about deprecated syntax patterns"
+    message: "Deprecated syntax: {{pattern}}"
+
+# =============================================================================
+# EXTENSIBILITY
+# =============================================================================
+# Configuration for extending Echo with plugins.
+
+extensibility:
+  # Interface for custom operators
+  customOperators:
+    interface: |
+      interface OperatorDefinition {
+        type: 'comparison' | 'unary' | 'ai';
+        handler: (value: unknown, arg?: unknown) => boolean | Promise<boolean>;
+        description: string;
+        example?: string;
+        autocomplete?: {
+          trigger: string;
+          snippet: string;
+        };
+      }
+
+  # Plugin entry point
+  pluginEntry: "./index.ts"
+
+  # Example plugin structure
+  pluginExample: |
+    import { definePlugin } from '@echo-pdk/core';
+
+    export default definePlugin({
+      name: 'my-plugin',
+      version: '1.0.0',
+      operators: {
+        isEmpty: {
+          type: 'unary',
+          handler: (value) => !value,
+          description: 'Check if value is empty',
+          example: '{{field}} #isEmpty'
+        }
+      }
+    });
