@@ -289,11 +289,38 @@ export const WhiteSpace = createToken({
 
 /**
  * Text - Plain text content.
- * Matches any character sequence that:
- * - Doesn't contain {{ (variable start)
- * - Doesn't contain [# or [ELSE or [END (directive markers)
  *
- * Uses negative lookahead to stop at special sequences.
+ * Matches any character sequence that doesn't start a special Echo construct.
+ * The lexer must stop when encountering:
+ * - `{{` (variable start)
+ * - `[#` (directive start: [#IF, [#SECTION, [#IMPORT, [#INCLUDE)
+ * - `[E` (branch/end markers: [ELSE], [ELSE IF, [END IF], [END SECTION])
+ *
+ * REGEX BREAKDOWN: /(?:[^\[{]|\[(?![#E])|\{(?!\{))+/
+ *
+ *   (?:                    Non-capturing group containing three alternatives:
+ *   │
+ *   ├─ [^\[{]              Alt 1: Any character EXCEPT '[' or '{'
+ *   │                            These are safe - no special meaning
+ *   │
+ *   ├─ \[(?![#E])          Alt 2: A '[' NOT followed by '#' or 'E'
+ *   │   │                        Allows: [x, [1, [anything-else
+ *   │   └─ (?![#E])              Negative lookahead excludes:
+ *   │                              - [# (directives like [#IF)
+ *   │                              - [E (branches like [ELSE], [END IF])
+ *   │
+ *   └─ \{(?!\{)            Alt 3: A '{' NOT followed by another '{'
+ *       │                        Allows: single { in text
+ *       └─ (?!\{)                Negative lookahead excludes:
+ *                                  - {{ (variable start)
+ *   )+                     One or more matches (greedy)
+ *
+ * EXAMPLES:
+ *   "Hello world"     → matches entirely (no special chars)
+ *   "Hello {{name}}"  → matches "Hello " then stops at {{
+ *   "Price: $[100]"   → matches entirely ([1 is not [# or [E)
+ *   "Use {braces}"    → matches entirely (single { is allowed)
+ *   "[#IF ..."        → matches nothing (starts with [#)
  */
 export const Text = createToken({
   name: 'Text',

@@ -62,7 +62,7 @@ import type {
 // Import submodules
 import { parse } from './parser/parser.js';
 import { evaluate } from './evaluator/evaluator.js';
-import { render } from './renderer/renderer.js';
+import { render, formatErrors } from './renderer/renderer.js';
 import { builtinOperators, getOperator } from './evaluator/operators.js';
 import { createOpenAIProvider, withCache } from './ai-judge/index.js';
 
@@ -73,7 +73,7 @@ export {
   resolveVariable,
   type ResolveVariableOptions,
 } from './evaluator/evaluator.js';
-export { render, renderTemplate } from './renderer/renderer.js';
+export { render, renderTemplate, formatErrors } from './renderer/renderer.js';
 export { builtinOperators, getOperator } from './evaluator/operators.js';
 export {
   createTextNode,
@@ -191,10 +191,8 @@ export function createEcho(config: EchoConfig = {}): Echo {
       const parseResult = parse(template);
 
       if (!parseResult.success || !parseResult.ast) {
-        const errorMessages = parseResult.errors
-          .map((e) => formatErrorMessage(e))
-          .join('\n');
-        throw new Error(`Parse error:\n${errorMessages}`);
+        const formattedErrors = formatErrors(template, parseResult.errors);
+        throw new Error(`Parse error:\n${formattedErrors}`);
       }
 
       // Step 2: Evaluate
@@ -329,15 +327,22 @@ function setupAiJudgeOperator(
   }
 
   try {
+    // Resolve the model (default to gpt-4o-mini)
+    const model = config.aiProvider?.model ?? 'gpt-4o-mini';
+
     // Create OpenAI provider with caching
     const provider = createOpenAIProvider({
       type: 'openai',
       apiKey,
-      model: config.aiProvider?.model,
+      model,
       timeout: config.aiProvider?.timeout,
     });
 
-    const cachedProvider = withCache(provider);
+    // Wrap with cache, including provider/model for cache key isolation
+    const cachedProvider = withCache(provider, {
+      providerType: providerType,
+      model,
+    });
 
     // Register the AI Judge operator with the provider
     operators.set('ai_judge', {
@@ -477,17 +482,6 @@ function validateNodes(
     }
   }
 }
-
-/**
- * Format an error message with location if available.
- */
-function formatErrorMessage(error: EchoError): string {
-  if (error.location) {
-    return `${error.message} at line ${error.location.startLine}, column ${error.location.startColumn}`;
-  }
-  return error.message;
-}
-
 /**
  * Helper function for defining plugins with type safety.
  *

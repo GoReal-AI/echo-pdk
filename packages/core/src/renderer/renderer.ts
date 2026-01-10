@@ -258,15 +258,8 @@ export async function renderTemplate(
   const parseResult = parse(template);
 
   if (!parseResult.success || !parseResult.ast) {
-    const errorMessages = parseResult.errors
-      .map((e) => {
-        if (e.location) {
-          return `${e.message} at line ${e.location.startLine}, column ${e.location.startColumn}`;
-        }
-        return e.message;
-      })
-      .join('\n');
-    throw new Error(`Parse error:\n${errorMessages}`);
+    const formattedErrors = formatErrors(template, parseResult.errors);
+    throw new Error(`Parse error:\n${formattedErrors}`);
   }
 
   // Step 2: Evaluate the AST
