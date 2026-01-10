@@ -1,15 +1,14 @@
 #!/usr/bin/env node
 /**
- * @fileoverview Echo PDK CLI - Command-line interface
+ * @fileoverview Echo CLI - Command-line interface
  *
- * This is the main entry point for the echo-pdk CLI.
+ * This is the main entry point for the Echo CLI.
  * It uses Commander.js to define commands and options.
  *
  * COMMANDS:
  * - render: Render a template with context
  * - validate: Validate template syntax
  * - debug: Show AST and evaluation trace
- * - init: Initialize a new Echo project
  * - watch: Watch mode for development
  */
 
@@ -24,8 +23,8 @@ import { validateCommand } from './commands/validate.js';
 const program = new Command();
 
 program
-  .name('echo-pdk')
-  .description('Echo Prompt Development Kit - Dynamic prompt templating')
+  .name('echopdk')
+  .description('Echo PDK - Dynamic prompt templating DSL')
   .version('0.1.0');
 
 // =============================================================================
@@ -62,18 +61,6 @@ program
     // TODO: Implement debug command
     console.log('Debug command not yet implemented');
     console.log('Template:', template);
-    console.log('Options:', options);
-  });
-
-// Init command
-program
-  .command('init [directory]')
-  .description('Initialize a new Echo project')
-  .option('--template <name>', 'Project template to use', 'default')
-  .action(async (directory: string = '.', options: Record<string, unknown>) => {
-    // TODO: Implement init command
-    console.log('Init command not yet implemented');
-    console.log('Directory:', directory);
     console.log('Options:', options);
   });
 

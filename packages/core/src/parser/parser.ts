@@ -56,8 +56,8 @@ import {
   RParen,
   CloseBracket,
   DefaultOp,
-  Comma,
   Equals,
+  OperatorArgText,
 } from './lexer.js';
 import {
   createTextNode,
@@ -201,32 +201,13 @@ class EchoParser extends CstParser {
     // Operator
     this.CONSUME(Operator);
 
-    // Optional arguments
+    // Optional arguments - free-form text
     this.OPTION(() => {
       this.CONSUME(LParen);
       this.OPTION2(() => {
-        this.SUBRULE(this.argumentList);
+        this.CONSUME(OperatorArgText);
       });
       this.CONSUME(RParen);
-    });
-  });
-
-  /**
-   * Argument list for operators
-   */
-  private argumentList = this.RULE('argumentList', () => {
-    this.OR([
-      { ALT: () => this.CONSUME(StringLiteral) },
-      { ALT: () => this.CONSUME(NumberLiteral) },
-      { ALT: () => this.CONSUME(Identifier) },
-    ]);
-    this.MANY(() => {
-      this.CONSUME(Comma);
-      this.OR2([
-        { ALT: () => this.CONSUME2(StringLiteral) },
-        { ALT: () => this.CONSUME2(NumberLiteral) },
-        { ALT: () => this.CONSUME2(Identifier) },
-      ]);
     });
   });
 
@@ -524,46 +505,30 @@ class EchoAstVisitor extends BaseCstVisitor {
 
     let argument: string | number | string[] | undefined;
 
-    if (ctx.argumentList?.[0]) {
-      const args = this.visit(ctx.argumentList[0]) as (string | number)[];
-      if (args.length === 1) {
-        argument = args[0];
-      } else if (args.length > 1) {
-        argument = args.map(String);
+    // Get the free-form argument text
+    const argTextToken = ctx.OperatorArgText?.[0];
+    if (argTextToken) {
+      let argText = argTextToken.image.trim();
+
+      // Strip surrounding quotes if present (backwards compatibility)
+      argText = stripQuotes(argText);
+
+      // Check if it looks like a number
+      const num = parseFloat(argText);
+      if (!isNaN(num) && String(num) === argText) {
+        argument = num;
+      }
+      // Check if it contains commas (for list operators like #one_of)
+      else if (argText.includes(',')) {
+        argument = argText.split(',').map(s => stripQuotes(s.trim()));
+      }
+      // Otherwise treat as plain text
+      else {
+        argument = argText;
       }
     }
 
     return createConditionExpr(variable, operator, argument);
-  }
-
-  /**
-   * Visit an argument list.
-   */
-  argumentList(ctx: CstArgumentListContext): (string | number)[] {
-    const args: (string | number)[] = [];
-
-    // Collect all string literals
-    if (ctx.StringLiteral) {
-      for (const token of ctx.StringLiteral) {
-        args.push(stripQuotes(token.image));
-      }
-    }
-
-    // Collect all number literals
-    if (ctx.NumberLiteral) {
-      for (const token of ctx.NumberLiteral) {
-        args.push(parseFloat(token.image));
-      }
-    }
-
-    // Collect all identifiers (treated as strings)
-    if (ctx.Identifier) {
-      for (const token of ctx.Identifier) {
-        args.push(token.image);
-      }
-    }
-
-    return args;
   }
 
   /**
@@ -696,14 +661,7 @@ interface CstConditionContext {
   Operator?: IToken[];
   LParen?: IToken[];
   RParen?: IToken[];
-  argumentList?: CstNode[];
-}
-
-interface CstArgumentListContext {
-  StringLiteral?: IToken[];
-  NumberLiteral?: IToken[];
-  Identifier?: IToken[];
-  Comma?: IToken[];
+  OperatorArgText?: IToken[];
 }
 
 interface CstSectionNodeContext {
