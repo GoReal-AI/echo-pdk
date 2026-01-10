@@ -96,8 +96,8 @@ describe('lexer', () => {
       expect(tokenNames).toContain('IfOpen');
       expect(tokenNames).toContain('Operator');
       expect(tokenNames).toContain('LParen');
-      expect(tokenNames).toContain('NumberLiteral');
-      expect(tokenNames).toContain('RParen');
+      expect(tokenNames).toContain('OperatorArgText'); // Now captures "18" as text
+      expect(tokenNames).toContain('RParenOperatorArg');
     });
 
     it('should tokenize IF...ELSE...END IF', () => {
@@ -127,18 +127,30 @@ describe('lexer', () => {
       const result = tokenize('[#IF {{genre}} #equals("Horror")]scary[END IF]');
       expect(result.errors).toHaveLength(0);
 
-      const stringLiterals = result.tokens.filter((t) => t.tokenType.name === 'StringLiteral');
-      expect(stringLiterals).toHaveLength(1);
-      expect(stringLiterals[0].image).toBe('"Horror"');
+      // Now operator arguments are captured as OperatorArgText
+      const argText = result.tokens.filter((t) => t.tokenType.name === 'OperatorArgText');
+      expect(argText).toHaveLength(1);
+      expect(argText[0].image).toBe('"Horror"');
     });
 
     it('should tokenize operator with multiple arguments', () => {
       const result = tokenize('[#IF {{status}} #in(active,pending,completed)]show[END IF]');
       expect(result.errors).toHaveLength(0);
 
-      const tokenNames = result.tokens.map((t) => t.tokenType.name);
-      expect(tokenNames.filter((n) => n === 'Identifier').length).toBeGreaterThanOrEqual(2);
-      expect(tokenNames.filter((n) => n === 'Comma').length).toBe(2);
+      // Now entire argument list is captured as single OperatorArgText
+      const argText = result.tokens.filter((t) => t.tokenType.name === 'OperatorArgText');
+      expect(argText).toHaveLength(1);
+      expect(argText[0].image).toBe('active,pending,completed');
+    });
+
+    it('should tokenize operator with free-form text argument', () => {
+      const result = tokenize('[#IF {{companions}} #contains(My Girlfriend)]show[END IF]');
+      expect(result.errors).toHaveLength(0);
+
+      // Free-form text with spaces is now supported
+      const argText = result.tokens.filter((t) => t.tokenType.name === 'OperatorArgText');
+      expect(argText).toHaveLength(1);
+      expect(argText[0].image).toBe('My Girlfriend');
     });
   });
 

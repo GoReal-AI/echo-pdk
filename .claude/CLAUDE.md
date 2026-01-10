@@ -114,15 +114,21 @@ pnpm clean            # Clean build artifacts
 ```
 
 ### Built-in Operators
-| Operator | Type | Description |
-|----------|------|-------------|
-| `#equals(v)` | comparison | Exact match (case-insensitive) |
-| `#contains(v)` | comparison | String/array contains |
-| `#exists` | unary | Is defined and not empty |
-| `#matches(regex)` | comparison | Regex pattern match |
-| `#gt(n)`, `#lt(n)` | comparison | Numeric comparisons |
-| `#in(a,b,c)` | comparison | Value in list |
-| `#ai_judge(q)` | ai | LLM-evaluated boolean |
+
+Operators have readable names for low-coders and short aliases for developers.
+
+| Operator | Alias | Type | Description |
+|----------|-------|------|-------------|
+| `#equals(v)` | - | comparison | Exact match (case-insensitive) |
+| `#contains(v)` | - | comparison | String/array contains |
+| `#exists` | - | unary | Is defined and not empty |
+| `#matches(regex)` | - | comparison | Regex pattern match |
+| `#greater_than(n)` | `#gt` | comparison | Greater than |
+| `#greater_than_or_equal(n)` | `#gte` | comparison | Greater than or equal |
+| `#less_than(n)` | `#lt` | comparison | Less than |
+| `#less_than_or_equal(n)` | `#lte` | comparison | Less than or equal |
+| `#one_of(a,b,c)` | `#in` | comparison | Value in list |
+| `#ai_judge(q)` | - | ai | LLM-evaluated boolean |
 
 ### Composition
 ```

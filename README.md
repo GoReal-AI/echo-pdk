@@ -114,15 +114,19 @@ console.log(result);
 ```
 
 ### Built-in Operators
-| Operator | Description |
-|----------|-------------|
-| `#equals(value)` | Exact match |
-| `#contains(value)` | String/array contains |
-| `#exists` | Variable is defined |
-| `#matches(regex)` | Regex pattern match |
-| `#gt(n)`, `#lt(n)` | Numeric comparisons |
-| `#in(a,b,c)` | Value in list |
-| `#ai_judge(question)` | LLM-evaluated condition |
+
+Echo provides readable names for low-coders and short aliases for developers.
+
+| Operator | Alias | Description |
+|----------|-------|-------------|
+| `#equals(value)` | - | Exact match |
+| `#contains(value)` | - | String/array contains |
+| `#exists` | - | Variable is defined |
+| `#matches(regex)` | - | Regex pattern match |
+| `#greater_than(n)` | `#gt` | Greater than |
+| `#less_than(n)` | `#lt` | Less than |
+| `#one_of(a,b,c)` | `#in` | Value in list |
+| `#ai_judge(question)` | - | LLM-evaluated condition |
 
 ### Composition
 ```
@@ -150,6 +154,12 @@ echo-pdk validate template.echo
 | `@echo-pdk/core` | Main rendering engine, parser, evaluator |
 | `@echo-pdk/cli` | Command-line interface |
 | `@echo-pdk/language` | Language definition and schema |
+
+## Documentation
+
+- **[Complete Usage Guide](./docs/USAGE.md)** - Full tutorial with examples
+- **[Examples](./examples/)** - Ready-to-use template examples
+- **[Contributing](./CONTRIBUTING.md)** - Development guidelines
 
 ## Contributing
 

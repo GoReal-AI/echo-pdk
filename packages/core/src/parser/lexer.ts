@@ -236,18 +236,39 @@ export const NumberLiteral = createToken({
 
 /**
  * ( - Left parenthesis for operator arguments
+ * Pushes to OPERATOR_ARG_MODE to capture free-form text
  */
 export const LParen = createToken({
   name: 'LParen',
   pattern: /\(/,
+  push_mode: 'OPERATOR_ARG_MODE',
 });
 
 /**
- * ) - Right parenthesis for operator arguments
+ * ) - Right parenthesis for operator arguments (in DIRECTIVE_MODE)
  */
 export const RParen = createToken({
   name: 'RParen',
   pattern: /\)/,
+});
+
+/**
+ * ) - Right parenthesis that pops from OPERATOR_ARG_MODE
+ */
+const RParenOperatorArg = createToken({
+  name: 'RParenOperatorArg',
+  pattern: /\)/,
+  pop_mode: true,
+  categories: [RParen], // Extends RParen so parser sees it the same
+});
+
+/**
+ * Operator argument text - captures everything until closing paren.
+ * This allows natural text like "My Girlfriend" without quotes.
+ */
+export const OperatorArgText = createToken({
+  name: 'OperatorArgText',
+  pattern: /[^)]+/,
 });
 
 /**
@@ -403,6 +424,18 @@ const variableModeTokens: TokenType[] = [
   WhiteSpace,
 ];
 
+/**
+ * Tokens used inside operator arguments ( ... )
+ * Captures free-form text until closing paren.
+ */
+const operatorArgModeTokens: TokenType[] = [
+  // End of argument (pop mode)
+  RParenOperatorArg,
+
+  // Free-form text content
+  OperatorArgText,
+];
+
 // =============================================================================
 // MULTI-MODE LEXER DEFINITION
 // =============================================================================
@@ -416,6 +449,7 @@ const multiModeLexerDefinition: IMultiModeLexerDefinition = {
     DEFAULT_MODE: defaultModeTokens,
     DIRECTIVE_MODE: directiveModeTokens,
     VARIABLE_MODE: variableModeTokens,
+    OPERATOR_ARG_MODE: operatorArgModeTokens,
   },
   defaultMode: 'DEFAULT_MODE',
 };
@@ -455,7 +489,11 @@ export const allTokens: TokenType[] = [
   CloseBracket,
   LParen,
   RParen,
+  RParenOperatorArg,
   Comma,
+
+  // Operator argument mode tokens
+  OperatorArgText,
 
   // Literals
   StringLiteral,

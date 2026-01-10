@@ -134,17 +134,17 @@ export const matchesOperator: OperatorDefinition = {
 // =============================================================================
 
 /**
- * #gt - Greater than
+ * #greater_than - Greater than (alias: #gt)
  *
- * @example {{age}} #gt(18)
+ * @example {{age}} #greater_than(18)
  */
 export const gtOperator: OperatorDefinition = {
   type: 'comparison',
   description: 'Greater than comparison',
-  example: '{{age}} #gt(18)',
+  example: '{{age}} #greater_than(18)',
   autocomplete: {
-    trigger: '#gt',
-    snippet: '#gt($1)',
+    trigger: '#greater',
+    snippet: '#greater_than($1)',
   },
   handler: (value: unknown, threshold: unknown): boolean => {
     const num = typeof value === 'string' ? parseFloat(value) : value;
@@ -156,15 +156,15 @@ export const gtOperator: OperatorDefinition = {
 };
 
 /**
- * #gte - Greater than or equal
+ * #greater_than_or_equal - Greater than or equal (alias: #gte)
  */
 export const gteOperator: OperatorDefinition = {
   type: 'comparison',
   description: 'Greater than or equal comparison',
-  example: '{{age}} #gte(18)',
+  example: '{{age}} #greater_than_or_equal(18)',
   autocomplete: {
-    trigger: '#gte',
-    snippet: '#gte($1)',
+    trigger: '#greater_than_or',
+    snippet: '#greater_than_or_equal($1)',
   },
   handler: (value: unknown, threshold: unknown): boolean => {
     const num = typeof value === 'string' ? parseFloat(value) : value;
@@ -176,15 +176,15 @@ export const gteOperator: OperatorDefinition = {
 };
 
 /**
- * #lt - Less than
+ * #less_than - Less than (alias: #lt)
  */
 export const ltOperator: OperatorDefinition = {
   type: 'comparison',
   description: 'Less than comparison',
-  example: '{{count}} #lt(10)',
+  example: '{{count}} #less_than(10)',
   autocomplete: {
-    trigger: '#lt',
-    snippet: '#lt($1)',
+    trigger: '#less',
+    snippet: '#less_than($1)',
   },
   handler: (value: unknown, threshold: unknown): boolean => {
     const num = typeof value === 'string' ? parseFloat(value) : value;
@@ -196,15 +196,15 @@ export const ltOperator: OperatorDefinition = {
 };
 
 /**
- * #lte - Less than or equal
+ * #less_than_or_equal - Less than or equal (alias: #lte)
  */
 export const lteOperator: OperatorDefinition = {
   type: 'comparison',
   description: 'Less than or equal comparison',
-  example: '{{count}} #lte(10)',
+  example: '{{count}} #less_than_or_equal(10)',
   autocomplete: {
-    trigger: '#lte',
-    snippet: '#lte($1)',
+    trigger: '#less_than_or',
+    snippet: '#less_than_or_equal($1)',
   },
   handler: (value: unknown, threshold: unknown): boolean => {
     const num = typeof value === 'string' ? parseFloat(value) : value;
@@ -220,17 +220,17 @@ export const lteOperator: OperatorDefinition = {
 // =============================================================================
 
 /**
- * #in - Check if value is in a list
+ * #one_of - Check if value is in a list (alias: #in)
  *
- * @example {{status}} #in(active,pending,completed)
+ * @example {{status}} #one_of(active,pending,completed)
  */
 export const inOperator: OperatorDefinition = {
   type: 'comparison',
-  description: 'Check if value is in list',
-  example: '{{status}} #in(active,pending,completed)',
+  description: 'Check if value is one of the given options',
+  example: '{{status}} #one_of(active,pending,completed)',
   autocomplete: {
-    trigger: '#in',
-    snippet: '#in($1)',
+    trigger: '#one',
+    snippet: '#one_of($1)',
   },
   handler: (value: unknown, list: unknown): boolean => {
     // List can be passed as array or comma-separated string
@@ -300,18 +300,31 @@ export const aiJudgeOperator: OperatorDefinition = {
 
 /**
  * All built-in operators.
+ *
+ * Operators have readable names for low-coders and short aliases for developers.
+ * Both forms work identically:
+ *   - #greater_than(10) or #gt(10)
+ *   - #one_of(a,b,c) or #in(a,b,c)
  */
 export const builtinOperators: Record<string, OperatorDefinition> = {
+  // Comparison operators (readable names)
   equals: equalsOperator,
   contains: containsOperator,
   exists: existsOperator,
   matches: matchesOperator,
+  greater_than: gtOperator,
+  greater_than_or_equal: gteOperator,
+  less_than: ltOperator,
+  less_than_or_equal: lteOperator,
+  one_of: inOperator,
+  ai_judge: aiJudgeOperator,
+
+  // Short aliases for developers
   gt: gtOperator,
   gte: gteOperator,
   lt: ltOperator,
   lte: lteOperator,
   in: inOperator,
-  ai_judge: aiJudgeOperator,
 };
 
 /**
