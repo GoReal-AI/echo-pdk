@@ -8,6 +8,7 @@ export {
   evaluateConditional,
   resolveVariable,
   preEvaluateAiJudges,
+  createEvaluationContext,
 } from './evaluator.js';
 
 export type { EvaluationContext, EvaluatedNode } from './evaluator.js';

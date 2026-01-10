@@ -4,72 +4,39 @@
  * This file implements the parser for Echo DSL using Chevrotain.
  * The parser converts a token stream into an Abstract Syntax Tree (AST).
  *
- * IMPLEMENTATION GUIDE:
+ * GRAMMAR (pseudo-BNF):
  *
- * 1. GRAMMAR RULES
- *    The Echo grammar (in pseudo-BNF):
- *
- *    template     := (node)*
- *    node         := text | variable | conditional | section | import | include
- *    text         := TEXT
- *    variable     := "{{" identifier ("??" defaultValue)? "}}"
- *    identifier   := IDENTIFIER ("." IDENTIFIER | "[" index "]")*
- *    conditional  := ifBlock (elseIfBlock)* (elseBlock)? endIf
- *    ifBlock      := "[#IF" condition "]" (node)*
- *    elseIfBlock  := "[ELSE IF" condition "]" (node)*
- *    elseBlock    := "[ELSE]" (node)*
- *    endIf        := "[END IF]"
- *    condition    := variable operator
- *    operator     := "#" IDENTIFIER ("(" arguments ")")?
- *    arguments    := value ("," value)*
- *    value        := STRING | NUMBER | IDENTIFIER
- *    section      := "[#SECTION" "name=" STRING "]" (node)* "[END SECTION]"
- *    import       := "[#IMPORT" path "]"
- *    include      := "[#INCLUDE" IDENTIFIER "]"
- *
- * 2. PARSER CLASS STRUCTURE
- *    Use Chevrotain's CstParser or EmbeddedActionsParser:
- *
- *    class EchoParser extends CstParser {
- *      constructor() {
- *        super(allTokens);
- *        this.performSelfAnalysis();
- *      }
- *
- *      template = this.RULE("template", () => {
- *        this.MANY(() => this.SUBRULE(this.node));
- *      });
- *
- *      node = this.RULE("node", () => {
- *        this.OR([
- *          { ALT: () => this.SUBRULE(this.textNode) },
- *          { ALT: () => this.SUBRULE(this.variableNode) },
- *          { ALT: () => this.SUBRULE(this.conditionalNode) },
- *          // ... etc
- *        ]);
- *      });
- *
- *      // ... more rules
- *    }
- *
- * 3. CST TO AST TRANSFORMATION
- *    After parsing to CST, transform to our AST types.
- *    Use a visitor pattern for clean transformation.
- *
- * 4. ERROR RECOVERY
- *    Implement error recovery for:
- *    - Unclosed blocks
- *    - Missing operators
- *    - Invalid nesting
- *
- * 5. SOURCE LOCATIONS
- *    Track source locations for all nodes for error reporting.
+ *   template     := (node)*
+ *   node         := text | variable | conditional | section | import | include
+ *   text         := TEXT
+ *   variable     := "{{" identifier ("??" defaultValue)? "}}"
+ *   conditional  := ifBlock (elseIfBlock)* (elseBlock)? endIf
+ *   ifBlock      := "[#IF" condition "]" (node)*
+ *   elseIfBlock  := "[ELSE IF" condition "]" (node)*
+ *   elseBlock    := "[ELSE]" (node)*
+ *   endIf        := "[END IF]"
+ *   condition    := "{{" identifier "}}" operator
+ *   operator     := "#" IDENTIFIER ("(" arguments ")")?
+ *   arguments    := value ("," value)*
+ *   value        := STRING | NUMBER | IDENTIFIER
+ *   section      := "[#SECTION" "name" "=" STRING "]" (node)* "[END SECTION]"
+ *   import       := "[#IMPORT" (STRING | path) "]"
+ *   include      := "[#INCLUDE" IDENTIFIER "]"
  */
 
-import { CstParser, type IToken } from 'chevrotain';
-import type { ParseResult, SourceLocation } from '../types.js';
+import { CstParser, type CstNode, type IToken } from 'chevrotain';
+import type {
+  ASTNode,
+  ParseResult,
+  SourceLocation,
+  EchoError,
+  ConditionExpr,
+  ConditionalNode,
+} from '../types.js';
 import {
   allTokens,
+  tokenize,
+  formatLexerErrors,
   Text,
   VariableOpen,
   VariableClose,
@@ -90,7 +57,17 @@ import {
   CloseBracket,
   DefaultOp,
   Comma,
+  Equals,
 } from './lexer.js';
+import {
+  createTextNode,
+  createVariableNode,
+  createConditionalNode,
+  createConditionExpr,
+  createSectionNode,
+  createImportNode,
+  createIncludeNode,
+} from './ast.js';
 
 // =============================================================================
 // PARSER CLASS
@@ -100,15 +77,15 @@ import {
  * Echo CST Parser
  *
  * Parses Echo template tokens into a Concrete Syntax Tree (CST).
- * The CST is then transformed into our AST format.
+ * The CST is then transformed into our AST format using the visitor.
  */
 class EchoParser extends CstParser {
   constructor() {
     super(allTokens, {
-      recoveryEnabled: true, // Enable error recovery
+      recoveryEnabled: true,
+      nodeLocationTracking: 'full',
     });
 
-    // Must be called after all rules are defined
     this.performSelfAnalysis();
   }
 
@@ -178,24 +155,38 @@ class EchoParser extends CstParser {
 
     // Optional ELSE IF blocks
     this.MANY2(() => {
-      this.CONSUME(ElseIf);
-      this.SUBRULE2(this.condition);
-      this.CONSUME2(CloseBracket);
-      this.MANY3(() => {
-        this.SUBRULE2(this.node);
-      });
+      this.SUBRULE(this.elseIfBlock);
     });
 
     // Optional ELSE block
     this.OPTION(() => {
-      this.CONSUME(Else);
-      this.MANY4(() => {
-        this.SUBRULE3(this.node);
-      });
+      this.SUBRULE(this.elseBlock);
     });
 
     // [END IF]
     this.CONSUME(EndIf);
+  });
+
+  /**
+   * ELSE IF block
+   */
+  private elseIfBlock = this.RULE('elseIfBlock', () => {
+    this.CONSUME(ElseIf);
+    this.SUBRULE(this.condition);
+    this.CONSUME(CloseBracket);
+    this.MANY(() => {
+      this.SUBRULE(this.node);
+    });
+  });
+
+  /**
+   * ELSE block
+   */
+  private elseBlock = this.RULE('elseBlock', () => {
+    this.CONSUME(Else);
+    this.MANY(() => {
+      this.SUBRULE(this.node);
+    });
   });
 
   /**
@@ -213,7 +204,9 @@ class EchoParser extends CstParser {
     // Optional arguments
     this.OPTION(() => {
       this.CONSUME(LParen);
-      this.SUBRULE(this.argumentList);
+      this.OPTION2(() => {
+        this.SUBRULE(this.argumentList);
+      });
       this.CONSUME(RParen);
     });
   });
@@ -242,9 +235,9 @@ class EchoParser extends CstParser {
    */
   private sectionNode = this.RULE('sectionNode', () => {
     this.CONSUME(SectionOpen);
-    // TODO: Parse name="value" attribute
-    this.CONSUME(Identifier); // name
-    this.CONSUME(StringLiteral); // value
+    this.CONSUME(Identifier); // "name"
+    this.CONSUME(Equals);
+    this.CONSUME(StringLiteral); // "value"
     this.CONSUME(CloseBracket);
 
     this.MANY(() => {
@@ -277,88 +270,499 @@ class EchoParser extends CstParser {
 }
 
 // =============================================================================
-// PARSER INSTANCE & VISITOR
+// PARSER INSTANCE
 // =============================================================================
 
-// Singleton parser instance
 const parserInstance = new EchoParser();
 
-// Get the CST visitor base class
+// =============================================================================
+// CST TO AST VISITOR
+// =============================================================================
+
+/**
+ * Get the base CST visitor class from our parser instance.
+ */
 const BaseCstVisitor = parserInstance.getBaseCstVisitorConstructor();
 
 /**
- * CST to AST Visitor
- *
- * Transforms the Concrete Syntax Tree into our Abstract Syntax Tree.
- *
- * TODO: Implement visitor methods for each rule:
- * - template(ctx): ASTNode[]
- * - node(ctx): ASTNode
- * - textNode(ctx): TextNode
- * - variableNode(ctx): VariableNode
- * - conditionalNode(ctx): ConditionalNode
- * - condition(ctx): ConditionExpr
- * - sectionNode(ctx): SectionNode
- * - importNode(ctx): ImportNode
- * - includeNode(ctx): IncludeNode
- *
- * Example implementation:
- * class EchoAstVisitor extends BaseCstVisitor {
- *   constructor() {
- *     super();
- *     this.validateVisitor();
- *   }
- *   template(ctx) { return []; }
- * }
- * const astVisitor = new EchoAstVisitor();
+ * Default source location for fallback.
  */
-void BaseCstVisitor; // Reference to prevent unused warning
+const defaultLocation: SourceLocation = {
+  startLine: 1,
+  startColumn: 1,
+  endLine: 1,
+  endColumn: 1,
+};
+
+/**
+ * CST Visitor that transforms the Concrete Syntax Tree into our AST.
+ */
+class EchoAstVisitor extends BaseCstVisitor {
+  constructor() {
+    super();
+    this.validateVisitor();
+  }
+
+  /**
+   * Visit the root template rule.
+   */
+  template(ctx: CstTemplateContext): ASTNode[] {
+    const nodes: ASTNode[] = [];
+
+    if (ctx.node) {
+      for (const nodeCtx of ctx.node) {
+        const node = this.visit(nodeCtx);
+        if (node) {
+          nodes.push(node);
+        }
+      }
+    }
+
+    return nodes;
+  }
+
+  /**
+   * Visit a node (dispatches to specific node type).
+   */
+  node(ctx: CstNodeContext): ASTNode | undefined {
+    if (ctx.textNode?.[0]) {
+      return this.visit(ctx.textNode[0]);
+    }
+    if (ctx.variableNode?.[0]) {
+      return this.visit(ctx.variableNode[0]);
+    }
+    if (ctx.conditionalNode?.[0]) {
+      return this.visit(ctx.conditionalNode[0]);
+    }
+    if (ctx.sectionNode?.[0]) {
+      return this.visit(ctx.sectionNode[0]);
+    }
+    if (ctx.importNode?.[0]) {
+      return this.visit(ctx.importNode[0]);
+    }
+    if (ctx.includeNode?.[0]) {
+      return this.visit(ctx.includeNode[0]);
+    }
+    return undefined;
+  }
+
+  /**
+   * Visit a text node.
+   */
+  textNode(ctx: CstTextNodeContext): ASTNode {
+    const token = ctx.Text?.[0];
+    if (!token) {
+      return createTextNode('', defaultLocation);
+    }
+    return createTextNode(token.image, getTokenLocation(token));
+  }
+
+  /**
+   * Visit a variable node.
+   */
+  variableNode(ctx: CstVariableNodeContext): ASTNode {
+    const openToken = ctx.VariableOpen?.[0];
+    const closeToken = ctx.VariableClose?.[0];
+    const identifierToken = ctx.Identifier?.[0];
+
+    if (!identifierToken) {
+      return createVariableNode('', defaultLocation);
+    }
+
+    const path = identifierToken.image;
+
+    let defaultValue: string | undefined;
+    if (ctx.DefaultOp && (ctx.StringLiteral || ctx.NumberLiteral)) {
+      const valueToken = ctx.StringLiteral?.[0] ?? ctx.NumberLiteral?.[0];
+      if (valueToken) {
+        defaultValue = stripQuotes(valueToken.image);
+      }
+    }
+
+    const location = openToken && closeToken
+      ? mergeLocations(getTokenLocation(openToken), getTokenLocation(closeToken))
+      : getTokenLocation(identifierToken);
+
+    return createVariableNode(path, location, defaultValue);
+  }
+
+  /**
+   * Visit a conditional node.
+   */
+  conditionalNode(ctx: CstConditionalNodeContext): ASTNode {
+    const ifOpenToken = ctx.IfOpen?.[0];
+    const endIfToken = ctx.EndIf?.[0];
+
+    // Parse the main condition
+    const conditionCtx = ctx.condition?.[0];
+    const condition = conditionCtx
+      ? (this.visit(conditionCtx) as ConditionExpr)
+      : createConditionExpr('', 'exists');
+
+    // Parse body nodes
+    const consequent: ASTNode[] = [];
+    if (ctx.node) {
+      for (const nodeCtx of ctx.node) {
+        const node = this.visit(nodeCtx);
+        if (node) {
+          consequent.push(node);
+        }
+      }
+    }
+
+    // Build the alternate chain (ELSE IF and ELSE blocks)
+    let alternate: ConditionalNode | ASTNode[] | undefined;
+
+    // Handle ELSE block (process first as it's the end of the chain)
+    if (ctx.elseBlock?.[0]) {
+      const elseNodes = this.visit(ctx.elseBlock[0]) as ASTNode[];
+      alternate = elseNodes;
+    }
+
+    // Handle ELSE IF blocks (in reverse order to build the chain)
+    if (ctx.elseIfBlock) {
+      for (let i = ctx.elseIfBlock.length - 1; i >= 0; i--) {
+        const elseIfCtx = ctx.elseIfBlock[i];
+        if (elseIfCtx) {
+          const elseIfResult = this.visitElseIfBlockWithAlternate(elseIfCtx, alternate);
+          alternate = elseIfResult;
+        }
+      }
+    }
+
+    const location = ifOpenToken && endIfToken
+      ? mergeLocations(getTokenLocation(ifOpenToken), getTokenLocation(endIfToken))
+      : defaultLocation;
+
+    return createConditionalNode(condition, consequent, location, alternate);
+  }
+
+  /**
+   * Visit an ELSE IF block and create a ConditionalNode with alternate.
+   *
+   * This method handles the CstNode structure from Chevrotain, using runtime
+   * validation to safely access the children property.
+   */
+  private visitElseIfBlockWithAlternate(
+    ctx: CstNode,
+    nextAlternate?: ConditionalNode | ASTNode[]
+  ): ConditionalNode {
+    // Safely extract children with runtime validation
+    const children = getCstChildren<CstElseIfBlockContext>(ctx, 'elseIfBlock');
+
+    const elseIfToken = children.ElseIf?.[0];
+    const closeBracketToken = children.CloseBracket?.[0];
+
+    const conditionCtx = children.condition?.[0];
+    const condition = conditionCtx
+      ? (this.visit(conditionCtx) as ConditionExpr)
+      : createConditionExpr('', 'exists');
+
+    const consequent: ASTNode[] = [];
+    if (children.node) {
+      for (const nodeCtx of children.node) {
+        const node = this.visit(nodeCtx);
+        if (node) {
+          consequent.push(node);
+        }
+      }
+    }
+
+    const location = elseIfToken && closeBracketToken
+      ? mergeLocations(getTokenLocation(elseIfToken), getTokenLocation(closeBracketToken))
+      : defaultLocation;
+
+    return createConditionalNode(condition, consequent, location, nextAlternate);
+  }
+
+  /**
+   * Visit an ELSE IF block.
+   *
+   * Note: When called directly by the visitor, ctx is the children object.
+   * We wrap it to match the CstNode structure expected by visitElseIfBlockWithAlternate.
+   */
+  elseIfBlock(ctx: CstElseIfBlockContext): ConditionalNode {
+    // Wrap the context in a CstNode-like structure for visitElseIfBlockWithAlternate
+    const wrappedCtx = { children: ctx } as CstNode;
+    return this.visitElseIfBlockWithAlternate(wrappedCtx, undefined);
+  }
+
+  /**
+   * Visit an ELSE block.
+   */
+  elseBlock(ctx: CstElseBlockContext): ASTNode[] {
+    const nodes: ASTNode[] = [];
+
+    if (ctx.node) {
+      for (const nodeCtx of ctx.node) {
+        const node = this.visit(nodeCtx);
+        if (node) {
+          nodes.push(node);
+        }
+      }
+    }
+
+    return nodes;
+  }
+
+  /**
+   * Visit a condition expression.
+   */
+  condition(ctx: CstConditionContext): ConditionExpr {
+    const identifierToken = ctx.Identifier?.[0];
+    const operatorToken = ctx.Operator?.[0];
+
+    const variable = identifierToken?.image ?? '';
+    const operator = (operatorToken?.image ?? '#exists').replace(/^#/, '');
+
+    let argument: string | number | string[] | undefined;
+
+    if (ctx.argumentList?.[0]) {
+      const args = this.visit(ctx.argumentList[0]) as (string | number)[];
+      if (args.length === 1) {
+        argument = args[0];
+      } else if (args.length > 1) {
+        argument = args.map(String);
+      }
+    }
+
+    return createConditionExpr(variable, operator, argument);
+  }
+
+  /**
+   * Visit an argument list.
+   */
+  argumentList(ctx: CstArgumentListContext): (string | number)[] {
+    const args: (string | number)[] = [];
+
+    // Collect all string literals
+    if (ctx.StringLiteral) {
+      for (const token of ctx.StringLiteral) {
+        args.push(stripQuotes(token.image));
+      }
+    }
+
+    // Collect all number literals
+    if (ctx.NumberLiteral) {
+      for (const token of ctx.NumberLiteral) {
+        args.push(parseFloat(token.image));
+      }
+    }
+
+    // Collect all identifiers (treated as strings)
+    if (ctx.Identifier) {
+      for (const token of ctx.Identifier) {
+        args.push(token.image);
+      }
+    }
+
+    return args;
+  }
+
+  /**
+   * Visit a section node.
+   */
+  sectionNode(ctx: CstSectionNodeContext): ASTNode {
+    const sectionOpenToken = ctx.SectionOpen?.[0];
+    const endSectionToken = ctx.EndSection?.[0];
+    const nameToken = ctx.StringLiteral?.[0];
+
+    const name = nameToken ? stripQuotes(nameToken.image) : '';
+
+    const body: ASTNode[] = [];
+    if (ctx.node) {
+      for (const nodeCtx of ctx.node) {
+        const node = this.visit(nodeCtx);
+        if (node) {
+          body.push(node);
+        }
+      }
+    }
+
+    const location = sectionOpenToken && endSectionToken
+      ? mergeLocations(getTokenLocation(sectionOpenToken), getTokenLocation(endSectionToken))
+      : defaultLocation;
+
+    return createSectionNode(name, body, location);
+  }
+
+  /**
+   * Visit an import node.
+   */
+  importNode(ctx: CstImportNodeContext): ASTNode {
+    const importToken = ctx.Import?.[0];
+    const closeBracketToken = ctx.CloseBracket?.[0];
+
+    let path: string;
+    if (ctx.StringLiteral?.[0]) {
+      path = stripQuotes(ctx.StringLiteral[0].image);
+    } else if (ctx.Identifier?.[0]) {
+      path = ctx.Identifier[0].image;
+    } else {
+      path = '';
+    }
+
+    const location = importToken && closeBracketToken
+      ? mergeLocations(getTokenLocation(importToken), getTokenLocation(closeBracketToken))
+      : defaultLocation;
+
+    return createImportNode(path, location);
+  }
+
+  /**
+   * Visit an include node.
+   */
+  includeNode(ctx: CstIncludeNodeContext): ASTNode {
+    const includeToken = ctx.Include?.[0];
+    const closeBracketToken = ctx.CloseBracket?.[0];
+    const identifierToken = ctx.Identifier?.[0];
+
+    const name = identifierToken?.image ?? '';
+
+    const location = includeToken && closeBracketToken
+      ? mergeLocations(getTokenLocation(includeToken), getTokenLocation(closeBracketToken))
+      : defaultLocation;
+
+    return createIncludeNode(name, location);
+  }
+}
+
+// Create singleton visitor instance
+const astVisitor = new EchoAstVisitor();
 
 // =============================================================================
-// PUBLIC API
+// CST CONTEXT TYPES
+// =============================================================================
+
+interface CstTemplateContext {
+  node?: CstNode[];
+}
+
+interface CstNodeContext {
+  textNode?: CstNode[];
+  variableNode?: CstNode[];
+  conditionalNode?: CstNode[];
+  sectionNode?: CstNode[];
+  importNode?: CstNode[];
+  includeNode?: CstNode[];
+}
+
+interface CstTextNodeContext {
+  Text?: IToken[];
+}
+
+interface CstVariableNodeContext {
+  VariableOpen?: IToken[];
+  VariableClose?: IToken[];
+  Identifier?: IToken[];
+  DefaultOp?: IToken[];
+  StringLiteral?: IToken[];
+  NumberLiteral?: IToken[];
+}
+
+interface CstConditionalNodeContext {
+  IfOpen?: IToken[];
+  EndIf?: IToken[];
+  CloseBracket?: IToken[];
+  condition?: CstNode[];
+  node?: CstNode[];
+  elseIfBlock?: CstNode[];
+  elseBlock?: CstNode[];
+}
+
+interface CstElseIfBlockContext {
+  ElseIf?: IToken[];
+  CloseBracket?: IToken[];
+  condition?: CstNode[];
+  node?: CstNode[];
+}
+
+interface CstElseBlockContext {
+  Else?: IToken[];
+  node?: CstNode[];
+}
+
+interface CstConditionContext {
+  VariableOpen?: IToken[];
+  VariableClose?: IToken[];
+  Identifier?: IToken[];
+  Operator?: IToken[];
+  LParen?: IToken[];
+  RParen?: IToken[];
+  argumentList?: CstNode[];
+}
+
+interface CstArgumentListContext {
+  StringLiteral?: IToken[];
+  NumberLiteral?: IToken[];
+  Identifier?: IToken[];
+  Comma?: IToken[];
+}
+
+interface CstSectionNodeContext {
+  SectionOpen?: IToken[];
+  EndSection?: IToken[];
+  CloseBracket?: IToken[];
+  Identifier?: IToken[];
+  Equals?: IToken[];
+  StringLiteral?: IToken[];
+  node?: CstNode[];
+}
+
+interface CstImportNodeContext {
+  Import?: IToken[];
+  CloseBracket?: IToken[];
+  StringLiteral?: IToken[];
+  Identifier?: IToken[];
+}
+
+interface CstIncludeNodeContext {
+  Include?: IToken[];
+  CloseBracket?: IToken[];
+  Identifier?: IToken[];
+}
+
+// =============================================================================
+// UTILITY FUNCTIONS
 // =============================================================================
 
 /**
- * Parse an Echo template into an AST.
+ * Safely extract children from a CstNode with runtime validation.
  *
- * @param template - The Echo template string
- * @returns ParseResult with AST or errors
+ * Chevrotain's CstNode has a `children` property containing the parsed elements.
+ * This helper provides type-safe access with runtime validation to guard against
+ * unexpected structure changes.
+ *
+ * @param ctx - The CstNode to extract children from
+ * @param expectedRule - Optional rule name to validate (for better error messages)
+ * @returns The children object, typed as T
+ * @throws Error if children property is missing or invalid
  */
-export function parse(_template: string): ParseResult {
-  // TODO: Implement parsing
-  //
-  // 1. Tokenize the input
-  //    const lexResult = tokenize(template);
-  //    if (lexResult.errors.length > 0) {
-  //      return { success: false, errors: formatLexErrors(lexResult.errors) };
-  //    }
-  //
-  // 2. Parse tokens to CST
-  //    parserInstance.input = lexResult.tokens;
-  //    const cst = parserInstance.template();
-  //    if (parserInstance.errors.length > 0) {
-  //      return { success: false, errors: formatParseErrors(parserInstance.errors) };
-  //    }
-  //
-  // 3. Transform CST to AST
-  //    const ast = astVisitor.visit(cst);
-  //
-  // 4. Return result
-  //    return { success: true, ast, errors: [] };
+function getCstChildren<T>(ctx: CstNode, expectedRule?: string): T {
+  if (!ctx || typeof ctx !== 'object') {
+    throw new Error(
+      `Invalid CST node${expectedRule ? ` for rule "${expectedRule}"` : ''}: expected object, got ${typeof ctx}`
+    );
+  }
 
-  return {
-    success: false,
-    errors: [
-      {
-        code: 'NOT_IMPLEMENTED',
-        message: 'Parser not yet implemented',
-      },
-    ],
-  };
+  if (!('children' in ctx)) {
+    throw new Error(
+      `Invalid CST node${expectedRule ? ` for rule "${expectedRule}"` : ''}: missing "children" property`
+    );
+  }
+
+  const children = ctx.children;
+  if (!children || typeof children !== 'object') {
+    throw new Error(
+      `Invalid CST node${expectedRule ? ` for rule "${expectedRule}"` : ''}: "children" must be an object`
+    );
+  }
+
+  return children as T;
 }
 
 /**
- * Helper to extract source location from a token.
+ * Extract source location from a token.
  */
 export function getTokenLocation(token: IToken): SourceLocation {
   return {
@@ -370,50 +774,106 @@ export function getTokenLocation(token: IToken): SourceLocation {
   };
 }
 
+/**
+ * Merge two source locations into one spanning both.
+ */
+function mergeLocations(start: SourceLocation, end: SourceLocation): SourceLocation {
+  return {
+    startLine: start.startLine,
+    startColumn: start.startColumn,
+    endLine: end.endLine,
+    endColumn: end.endColumn,
+  };
+}
+
+/**
+ * Strip quotes from a string literal token.
+ */
+function stripQuotes(str: string): string {
+  if ((str.startsWith('"') && str.endsWith('"')) ||
+      (str.startsWith("'") && str.endsWith("'"))) {
+    return str.slice(1, -1);
+  }
+  return str;
+}
+
+/**
+ * Format parser errors for display.
+ */
+function formatParserErrors(errors: typeof parserInstance.errors): EchoError[] {
+  return errors.map((error) => {
+    const token = error.token;
+    return {
+      code: 'PARSE_ERROR',
+      message: error.message,
+      location: token ? getTokenLocation(token) : undefined,
+    };
+  });
+}
+
 // =============================================================================
-// IMPLEMENTATION NOTES
+// PUBLIC API
 // =============================================================================
 
-/*
-NEXT STEPS TO IMPLEMENT:
+/**
+ * Parse an Echo template into an AST.
+ *
+ * @param template - The Echo template string
+ * @returns ParseResult with AST or errors
+ *
+ * @example
+ * ```typescript
+ * const result = parse('Hello {{name}}!');
+ * if (result.success) {
+ *   console.log('AST:', result.ast);
+ * } else {
+ *   console.error('Errors:', result.errors);
+ * }
+ * ```
+ */
+export function parse(template: string): ParseResult {
+  // Step 1: Tokenize the input
+  const lexResult = tokenize(template);
 
-1. COMPLETE VISITOR METHODS
-   Each visitor method should:
-   - Extract relevant tokens from ctx
-   - Build the corresponding AST node
-   - Handle source locations properly
+  if (lexResult.errors.length > 0) {
+    return {
+      success: false,
+      errors: formatLexerErrors(lexResult.errors).map((msg) => ({
+        code: 'LEXER_ERROR',
+        message: msg,
+      })),
+    };
+  }
 
-   Example:
-   textNode(ctx) {
-     const token = ctx.Text[0];
-     return {
-       type: 'text',
-       value: token.image,
-       location: getTokenLocation(token)
-     };
-   }
+  // Step 2: Parse tokens to CST
+  parserInstance.input = lexResult.tokens;
+  const cst = parserInstance.template();
 
-2. HANDLE NESTED STRUCTURES
-   The conditionalNode visitor needs to:
-   - Recursively visit body nodes
-   - Handle ELSE IF chains properly
-   - Build the alternate chain correctly
+  if (parserInstance.errors.length > 0) {
+    return {
+      success: false,
+      errors: formatParserErrors(parserInstance.errors),
+    };
+  }
 
-3. ERROR RECOVERY
-   Chevrotain's recovery produces partial CST.
-   Handle missing tokens gracefully.
+  // Step 3: Transform CST to AST
+  try {
+    const ast = astVisitor.visit(cst) as ASTNode[];
 
-4. VALIDATION
-   After parsing, validate:
-   - All referenced sections exist
-   - Operators are known
-   - Variable paths are syntactically valid
-
-5. TESTS
-   Create parser.test.ts with tests for:
-   - Simple templates
-   - Nested conditionals
-   - ELSE IF chains
-   - Imports and includes
-   - Error cases
-*/
+    return {
+      success: true,
+      ast,
+      errors: [],
+    };
+  } catch (error) {
+    return {
+      success: false,
+      errors: [
+        {
+          code: 'AST_ERROR',
+          message: error instanceof Error ? error.message : 'Unknown AST transformation error',
+        },
+      ],
+    };
+  }
+}
