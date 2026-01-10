@@ -5,14 +5,6 @@
  * The evaluator processes the AST and determines which nodes should be rendered
  * based on the provided context and condition evaluation.
  *
- * IMPLEMENTATION GUIDE:
- *
- * The evaluator's main responsibilities:
- * 1. Resolve variable references from context
- * 2. Evaluate conditions using operators
- * 3. Handle AI judge conditions with parallel optimization
- * 4. Determine which branches of conditionals to include
- *
  * KEY OPTIMIZATION: AI JUDGE PARALLELIZATION
  * Before evaluating the AST, we:
  * 1. Collect ALL #ai_judge conditions from the tree
@@ -26,6 +18,8 @@
 import type {
   ASTNode,
   ConditionalNode,
+  SectionNode,
+  IncludeNode,
   ConditionExpr,
   EchoConfig,
   OperatorDefinition,
@@ -76,24 +70,25 @@ export interface EvaluatedNode {
  * - Simple: "name" -> context.name
  * - Nested: "user.name" -> context.user.name
  * - Array: "items[0]" -> context.items[0]
+ * - Mixed: "users[0].name" -> context.users[0].name
  *
  * @param path - The variable path
  * @param context - The context object
  * @returns The resolved value or undefined
+ *
+ * @example
+ * ```typescript
+ * const context = { user: { name: 'Alice' }, items: [1, 2, 3] };
+ * resolveVariable('user.name', context); // 'Alice'
+ * resolveVariable('items[0]', context);  // 1
+ * ```
  */
 export function resolveVariable(
   path: string,
   context: Record<string, unknown>
 ): unknown {
-  // TODO: Implement full variable resolution
-  //
-  // IMPLEMENTATION STEPS:
-  // 1. Split path by '.' and '[' to get parts
-  // 2. Walk the context object following the path
-  // 3. Handle array access: "items[0]" -> items[0]
-  // 4. Handle nested objects: "user.name" -> user.name
-  // 5. Return undefined if any part is missing
-
+  // Handle array access within parts: "items[0].name" -> ["items[0]", "name"]
+  // Then further split "items[0]" into array access
   const parts = path.split('.');
   let current: unknown = context;
 
@@ -102,22 +97,27 @@ export function resolveVariable(
       return undefined;
     }
 
-    // Handle array access: "items[0]"
-    const arrayMatch = part.match(/^(\w+)\[(\d+)\]$/);
-    if (arrayMatch) {
-      const [, name, indexStr] = arrayMatch;
-      const index = parseInt(indexStr ?? '0', 10);
-      if (name) {
-        current = (current as Record<string, unknown>)[name];
-      }
-      if (Array.isArray(current)) {
-        current = current[index];
-      } else {
+    // Check for array access pattern: "items[0]" or "items[0][1]"
+    const segments = part.split(/(\[\d+\])/g).filter(Boolean);
+
+    for (const segment of segments) {
+      if (current === undefined || current === null) {
         return undefined;
       }
-    } else {
-      // Simple property access
-      current = (current as Record<string, unknown>)[part];
+
+      const arrayMatch = segment.match(/^\[(\d+)\]$/);
+      if (arrayMatch && arrayMatch[1]) {
+        // Array index access
+        const index = parseInt(arrayMatch[1], 10);
+        if (Array.isArray(current)) {
+          current = current[index];
+        } else {
+          return undefined;
+        }
+      } else {
+        // Property access
+        current = (current as Record<string, unknown>)[segment];
+      }
     }
   }
 
@@ -152,7 +152,7 @@ export async function evaluateCondition(
     // Fall through to operator evaluation if not cached
   }
 
-  // Get the operator
+  // Get the operator (strip # if present)
   const operatorName = condition.operator.replace(/^#/, '');
   const operator =
     ctx.operators.get(operatorName) ?? getOperator(operatorName);
@@ -186,7 +186,6 @@ function createAiJudgeCacheKey(
   value: unknown,
   argument: unknown
 ): string {
-  // Simple stringification for cache key
   return JSON.stringify({ variable, value, argument });
 }
 
@@ -288,6 +287,127 @@ export async function evaluateConditional(
   return [];
 }
 
+/**
+ * Evaluate a single AST node.
+ *
+ * @param node - The node to evaluate
+ * @param ctx - The evaluation context
+ * @returns Array of nodes to render (may be empty, one, or many)
+ */
+async function evaluateNode(
+  node: ASTNode,
+  ctx: EvaluationContext
+): Promise<ASTNode[]> {
+  switch (node.type) {
+    case 'text':
+      // Text nodes pass through unchanged
+      return [node];
+
+    case 'variable':
+      // Variable nodes pass through unchanged (resolved during rendering)
+      return [node];
+
+    case 'conditional': {
+      // Evaluate condition and get selected branch
+      const branchNodes = await evaluateConditional(node, ctx);
+      // Recursively evaluate the selected branch
+      return evaluateNodes(branchNodes, ctx);
+    }
+
+    case 'section': {
+      // Store section in context for later [#INCLUDE] references
+      ctx.sections.set(node.name, node.body);
+      // Sections are not rendered inline
+      return [];
+    }
+
+    case 'import':
+      // Import handling: In a full implementation, we would:
+      // 1. Read the imported file
+      // 2. Parse it
+      // 3. Evaluate and inline the result
+      // For now, we pass through and let the renderer warn
+      return [node];
+
+    case 'include': {
+      // Include handling: inline the section content
+      const includeNode = node as IncludeNode;
+      const sectionContent = ctx.sections.get(includeNode.name);
+      if (sectionContent) {
+        // Recursively evaluate the section content
+        return evaluateNodes(sectionContent, ctx);
+      }
+      // Section not found - pass through and let renderer warn
+      if (ctx.config.strict) {
+        throw new Error(`Section not found: ${includeNode.name}`);
+      }
+      return [];
+    }
+
+    default: {
+      // Exhaustiveness check
+      const _exhaustive: never = node;
+      throw new Error(`Unknown node type: ${(_exhaustive as ASTNode).type}`);
+    }
+  }
+}
+
+/**
+ * Evaluate an array of AST nodes.
+ *
+ * @param nodes - The nodes to evaluate
+ * @param ctx - The evaluation context
+ * @returns Flattened array of nodes to render
+ */
+async function evaluateNodes(
+  nodes: ASTNode[],
+  ctx: EvaluationContext
+): Promise<ASTNode[]> {
+  const results: ASTNode[] = [];
+
+  for (const node of nodes) {
+    const evaluated = await evaluateNode(node, ctx);
+    results.push(...evaluated);
+  }
+
+  return results;
+}
+
+// =============================================================================
+// SECTION COLLECTION (First Pass)
+// =============================================================================
+
+/**
+ * Collect all section definitions from the AST.
+ * This is a first pass to ensure sections are available before includes.
+ *
+ * @param nodes - The AST nodes to scan
+ * @param sections - Map to store section definitions
+ */
+function collectSections(
+  nodes: ASTNode[],
+  sections: Map<string, ASTNode[]>
+): void {
+  for (const node of nodes) {
+    if (node.type === 'section') {
+      const sectionNode = node as SectionNode;
+      sections.set(sectionNode.name, sectionNode.body);
+      // Also scan inside the section for nested sections
+      collectSections(sectionNode.body, sections);
+    } else if (node.type === 'conditional') {
+      const conditionalNode = node as ConditionalNode;
+      collectSections(conditionalNode.consequent, sections);
+      if (conditionalNode.alternate) {
+        if (Array.isArray(conditionalNode.alternate)) {
+          collectSections(conditionalNode.alternate, sections);
+        } else {
+          collectSections([conditionalNode.alternate], sections);
+        }
+      }
+    }
+  }
+}
+
 // =============================================================================
 // MAIN EVALUATE FUNCTION
 // =============================================================================
@@ -295,11 +415,23 @@ export async function evaluateConditional(
 /**
  * Evaluate an AST with the given context.
  *
+ * This is the main entry point for AST evaluation. It:
+ * 1. Collects section definitions (first pass)
+ * 2. Pre-evaluates AI judge conditions in parallel
+ * 3. Evaluates the AST and selects conditional branches
+ * 4. Returns a flattened AST ready for rendering
+ *
  * @param ast - The AST to evaluate
  * @param context - Variable context
  * @param config - Echo configuration
  * @param operators - Custom operators (from plugins)
- * @returns Evaluated nodes ready for rendering
+ * @returns Evaluated AST and section map
+ *
+ * @example
+ * ```typescript
+ * const result = await evaluate(ast, { name: 'Alice', age: 25 });
+ * console.log(result.ast); // Flattened, evaluated AST
+ * ```
  */
 export async function evaluate(
   ast: ASTNode[],
@@ -316,58 +448,35 @@ export async function evaluate(
     operators,
   };
 
+  // First pass: collect all section definitions
+  collectSections(ast, ctx.sections);
+
   // Pre-evaluate AI judges in parallel (optimization!)
   await preEvaluateAiJudges(ast, ctx);
 
-  // TODO: Implement full AST evaluation
-  //
-  // IMPLEMENTATION STEPS:
-  // 1. First pass: collect section definitions
-  // 2. Second pass: evaluate nodes
-  //    - Text nodes: pass through
-  //    - Variable nodes: resolve and substitute
-  //    - Conditional nodes: evaluate and select branch
-  //    - Import nodes: load and inline
-  //    - Include nodes: inline section content
-  //
-  // The result should be a flattened list of nodes that should be rendered.
+  // Second pass: evaluate the AST
+  const evaluatedAst = await evaluateNodes(ast, ctx);
 
-  return { ast, sections: ctx.sections };
+  return { ast: evaluatedAst, sections: ctx.sections };
 }
 
-// =============================================================================
-// IMPLEMENTATION NOTES
-// =============================================================================
-
-/*
-NEXT STEPS TO IMPLEMENT:
-
-1. FULL AST EVALUATION
-   Walk the AST and produce a "flattened" version:
-   - Expand evaluated conditionals (only the selected branch)
-   - Resolve includes
-   - Keep text and variable nodes
-   - Remove section definitions (they're stored in ctx.sections)
-
-2. IMPORT HANDLING
-   Import nodes need to:
-   - Read the imported file
-   - Parse it
-   - Inline the resulting AST
-
-3. INCLUDE HANDLING
-   Include nodes need to:
-   - Look up the section by name
-   - Inline the section's AST
-
-4. CIRCULAR IMPORT DETECTION
-   Track imported files to detect circular imports.
-
-5. TESTS
-   Create evaluator.test.ts with tests for:
-   - Variable resolution (simple, nested, array)
-   - Each operator condition
-   - Conditional evaluation (if, else if, else)
-   - AI judge caching
-   - Error handling (strict vs lenient)
-*/
+/**
+ * Create an evaluation context manually.
+ * Useful for advanced use cases where you need more control.
+ *
+ * @param options - Context options
+ * @returns A new EvaluationContext
+ */
+export function createEvaluationContext(options: {
+  variables: Record<string, unknown>;
+  config?: EchoConfig;
+  operators?: Map<string, OperatorDefinition>;
+}): EvaluationContext {
+  return {
+    variables: options.variables,
+    aiJudgeResults: new Map(),
+    config: options.config ?? {},
+    sections: new Map(),
+    operators: options.operators ?? new Map(),
+  };
+}

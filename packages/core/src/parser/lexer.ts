@@ -1,49 +1,15 @@
 /**
- * @fileoverview Echo DSL Lexer - Tokenization
+ * @fileoverview Echo DSL Lexer - Multi-Mode Tokenization
  *
  * This file implements the lexer (tokenizer) for Echo DSL using Chevrotain.
- * The lexer converts raw template text into a stream of tokens.
+ * Uses multi-mode lexing to handle context-sensitive token recognition.
  *
- * IMPLEMENTATION GUIDE:
+ * LEXER MODES:
+ * - DEFAULT_MODE: Normal text content, looking for directives and variables
+ * - DIRECTIVE_MODE: Inside [#IF ...], [#SECTION ...], etc.
+ * - VARIABLE_MODE: Inside {{ ... }}
  *
- * 1. TOKEN DEFINITIONS
- *    Define tokens for each syntax element:
- *    - TEXT: Plain text content (anything not a special syntax)
- *    - VARIABLE_OPEN: {{
- *    - VARIABLE_CLOSE: }}
- *    - IF_OPEN: [#IF
- *    - ELSE_IF: [ELSE IF
- *    - ELSE: [ELSE]
- *    - END_IF: [END IF]
- *    - SECTION_OPEN: [#SECTION
- *    - END_SECTION: [END SECTION]
- *    - IMPORT: [#IMPORT
- *    - INCLUDE: [#INCLUDE
- *    - OPERATOR: #equals, #contains, #exists, #ai_judge, etc.
- *    - IDENTIFIER: variable names, section names
- *    - STRING: quoted strings for arguments
- *    - NUMBER: numeric literals
- *    - LPAREN, RPAREN: ( )
- *    - DEFAULT_OP: ??
- *    - CLOSE_BRACKET: ]
- *
- * 2. LEXER MODES
- *    Use Chevrotain's lexer modes to handle context:
- *    - DEFAULT_MODE: Normal text, looking for special syntax
- *    - VARIABLE_MODE: Inside {{ }}, parsing variable references
- *    - DIRECTIVE_MODE: Inside [#...], parsing directives
- *    - CONDITION_MODE: Parsing condition expressions
- *
- * 3. WHITESPACE HANDLING
- *    - Preserve whitespace in TEXT tokens (important for prompts!)
- *    - Skip whitespace inside directives and conditions
- *
- * 4. ERROR RECOVERY
- *    - Handle unterminated strings
- *    - Handle unclosed {{ or [#
- *    - Provide meaningful error positions
- *
- * EXAMPLE TOKEN STREAM:
+ * TOKEN STREAM EXAMPLE:
  *
  * Input: "Hello {{name}}! [#IF {{age}} #gt(18)]Adult[END IF]"
  *
@@ -66,126 +32,273 @@
  *   END_IF("[END IF]")
  */
 
-import { createToken, Lexer, type TokenType } from 'chevrotain';
+import {
+  createToken,
+  Lexer,
+  type TokenType,
+  type IMultiModeLexerDefinition,
+} from 'chevrotain';
 
 // =============================================================================
 // TOKEN DEFINITIONS
 // =============================================================================
 
-// TODO: Define all tokens here using createToken()
-//
-// Example:
-// export const VariableOpen = createToken({
-//   name: 'VariableOpen',
-//   pattern: /\{\{/,
-//   push_mode: 'variable_mode'
-// });
+// -----------------------------------------------------------------------------
+// Token Categories
+// These are abstract tokens that serve as parent categories.
+// Mode-specific variants extend these categories so the parser can match either.
+// -----------------------------------------------------------------------------
 
-// Placeholder tokens - replace with actual implementation
-export const Text = createToken({
-  name: 'Text',
-  pattern: /[^[{]+/,
-});
-
+/**
+ * Category for variable open tokens ({{)
+ */
 export const VariableOpen = createToken({
   name: 'VariableOpen',
-  pattern: /\{\{/,
+  pattern: Lexer.NA, // Abstract - no pattern
 });
 
+/**
+ * Category for variable close tokens (}})
+ */
 export const VariableClose = createToken({
   name: 'VariableClose',
-  pattern: /\}\}/,
+  pattern: Lexer.NA, // Abstract - no pattern
 });
 
-export const IfOpen = createToken({
-  name: 'IfOpen',
-  pattern: /\[#IF/,
-});
+// -----------------------------------------------------------------------------
+// Directive Keywords (Complete - no mode switch needed)
+// -----------------------------------------------------------------------------
 
-export const ElseIf = createToken({
-  name: 'ElseIf',
-  pattern: /\[ELSE IF/,
-});
-
-export const Else = createToken({
-  name: 'Else',
-  pattern: /\[ELSE\]/,
-});
-
+/**
+ * [END IF] - End of conditional block
+ */
 export const EndIf = createToken({
   name: 'EndIf',
   pattern: /\[END IF\]/,
 });
 
-export const SectionOpen = createToken({
-  name: 'SectionOpen',
-  pattern: /\[#SECTION/,
-});
-
+/**
+ * [END SECTION] - End of section definition
+ */
 export const EndSection = createToken({
   name: 'EndSection',
   pattern: /\[END SECTION\]/,
 });
 
+/**
+ * [ELSE] - Else branch (complete token)
+ */
+export const Else = createToken({
+  name: 'Else',
+  pattern: /\[ELSE\]/,
+});
+
+// -----------------------------------------------------------------------------
+// Directive Openers (Push to DIRECTIVE_MODE)
+// -----------------------------------------------------------------------------
+
+/**
+ * [#IF - Start of conditional (followed by condition)
+ */
+export const IfOpen = createToken({
+  name: 'IfOpen',
+  pattern: /\[#IF/,
+  push_mode: 'DIRECTIVE_MODE',
+});
+
+/**
+ * [ELSE IF - Else-if branch (followed by condition)
+ */
+export const ElseIf = createToken({
+  name: 'ElseIf',
+  pattern: /\[ELSE IF/,
+  push_mode: 'DIRECTIVE_MODE',
+});
+
+/**
+ * [#SECTION - Section definition (followed by name="value")
+ */
+export const SectionOpen = createToken({
+  name: 'SectionOpen',
+  pattern: /\[#SECTION/,
+  push_mode: 'DIRECTIVE_MODE',
+});
+
+/**
+ * [#IMPORT - Import directive (followed by path)
+ */
 export const Import = createToken({
   name: 'Import',
   pattern: /\[#IMPORT/,
+  push_mode: 'DIRECTIVE_MODE',
 });
 
+/**
+ * [#INCLUDE - Include directive (followed by section name)
+ */
 export const Include = createToken({
   name: 'Include',
   pattern: /\[#INCLUDE/,
+  push_mode: 'DIRECTIVE_MODE',
 });
 
+// -----------------------------------------------------------------------------
+// Variable Syntax - Mode-Specific Variants
+// -----------------------------------------------------------------------------
+
+/**
+ * {{ in DEFAULT_MODE - pushes to VARIABLE_MODE
+ * Extends VariableOpen category so parser can match it.
+ */
+const VariableOpenDefault = createToken({
+  name: 'VariableOpenDefault',
+  pattern: /\{\{/,
+  push_mode: 'VARIABLE_MODE',
+  categories: [VariableOpen],
+});
+
+/**
+ * {{ in DIRECTIVE_MODE - no mode change (conditions are inline)
+ * Extends VariableOpen category so parser can match it.
+ */
+const VariableOpenDirective = createToken({
+  name: 'VariableOpenDirective',
+  pattern: /\{\{/,
+  categories: [VariableOpen],
+});
+
+/**
+ * }} in VARIABLE_MODE - pops back to previous mode
+ * Extends VariableClose category so parser can match it.
+ */
+const VariableCloseVariable = createToken({
+  name: 'VariableCloseVariable',
+  pattern: /\}\}/,
+  pop_mode: true,
+  categories: [VariableClose],
+});
+
+/**
+ * }} in DIRECTIVE_MODE - no mode change
+ * Extends VariableClose category so parser can match it.
+ */
+const VariableCloseDirective = createToken({
+  name: 'VariableCloseDirective',
+  pattern: /\}\}/,
+  categories: [VariableClose],
+});
+
+// -----------------------------------------------------------------------------
+// Directive Mode Tokens
+// -----------------------------------------------------------------------------
+
+/**
+ * ] - End of directive (pops back to DEFAULT_MODE)
+ */
+export const CloseBracket = createToken({
+  name: 'CloseBracket',
+  pattern: /\]/,
+  pop_mode: true,
+});
+
+/**
+ * Operator - #equals, #contains, #ai_judge, etc.
+ */
 export const Operator = createToken({
   name: 'Operator',
   pattern: /#[a-zA-Z_][a-zA-Z0-9_]*/,
 });
 
+/**
+ * Identifier - variable names, section names, etc.
+ * Supports nested paths: user.name, items[0]
+ */
 export const Identifier = createToken({
   name: 'Identifier',
-  pattern: /[a-zA-Z_][a-zA-Z0-9_.[\]]*/,
+  pattern: /[a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*|\[\d+\])*/,
 });
 
+/**
+ * String literal - "value" or 'value'
+ */
 export const StringLiteral = createToken({
   name: 'StringLiteral',
   pattern: /"[^"]*"|'[^']*'/,
 });
 
+/**
+ * Number literal - integers and decimals
+ */
 export const NumberLiteral = createToken({
   name: 'NumberLiteral',
-  pattern: /-?\d+(\.\d+)?/,
+  pattern: /-?\d+(?:\.\d+)?/,
 });
 
+/**
+ * ( - Left parenthesis for operator arguments
+ */
 export const LParen = createToken({
   name: 'LParen',
   pattern: /\(/,
 });
 
+/**
+ * ) - Right parenthesis for operator arguments
+ */
 export const RParen = createToken({
   name: 'RParen',
   pattern: /\)/,
 });
 
-export const CloseBracket = createToken({
-  name: 'CloseBracket',
-  pattern: /\]/,
-});
-
-export const DefaultOp = createToken({
-  name: 'DefaultOp',
-  pattern: /\?\?/,
-});
-
+/**
+ * , - Comma separator in argument lists
+ */
 export const Comma = createToken({
   name: 'Comma',
   pattern: /,/,
 });
 
+/**
+ * = - Equals sign for attribute assignment (name="value")
+ */
+export const Equals = createToken({
+  name: 'Equals',
+  pattern: /=/,
+});
+
+/**
+ * ?? - Default value operator
+ */
+export const DefaultOp = createToken({
+  name: 'DefaultOp',
+  pattern: /\?\?/,
+});
+
+/**
+ * Whitespace - skipped in directive and variable modes
+ */
 export const WhiteSpace = createToken({
   name: 'WhiteSpace',
   pattern: /\s+/,
   group: Lexer.SKIPPED,
+});
+
+// -----------------------------------------------------------------------------
+// Text Content
+// -----------------------------------------------------------------------------
+
+/**
+ * Text - Plain text content.
+ * Matches any character sequence that:
+ * - Doesn't contain {{ (variable start)
+ * - Doesn't contain [# or [ELSE or [END (directive markers)
+ *
+ * Uses negative lookahead to stop at special sequences.
+ */
+export const Text = createToken({
+  name: 'Text',
+  pattern: /(?:[^\[{]|\[(?![#E])|\{(?!\{))+/,
+  line_breaks: true,
 });
 
 // =============================================================================
@@ -193,26 +306,65 @@ export const WhiteSpace = createToken({
 // =============================================================================
 
 /**
- * All tokens in order of priority.
- * Order matters! More specific patterns should come before general ones.
+ * All tokens used in DEFAULT_MODE.
+ * Order matters - more specific patterns first.
  */
-export const allTokens: TokenType[] = [
-  // Keywords and directives (most specific first)
+const defaultModeTokens: TokenType[] = [
+  // Complete directive tokens (no mode change)
   EndIf,
   EndSection,
-  ElseIf,
   Else,
+
+  // Directive openers (push to DIRECTIVE_MODE)
   IfOpen,
+  ElseIf,
   SectionOpen,
   Import,
   Include,
 
-  // Variable syntax
-  VariableOpen,
-  VariableClose,
+  // Variable (push to VARIABLE_MODE)
+  VariableOpenDefault,
 
-  // Operators and identifiers
+  // Plain text (catch-all - must be last)
+  Text,
+];
+
+/**
+ * Tokens used inside directives [#IF ...], [#SECTION ...], etc.
+ */
+const directiveModeTokens: TokenType[] = [
+  // End directive (pop mode)
+  CloseBracket,
+
+  // Nested variable in conditions
+  VariableOpenDirective,
+  VariableCloseDirective,
+
+  // Operators and punctuation
   Operator,
+  DefaultOp,
+  Equals,
+  LParen,
+  RParen,
+  Comma,
+
+  // Literals (before Identifier to catch numbers first)
+  StringLiteral,
+  NumberLiteral,
+  Identifier,
+
+  // Whitespace (skipped)
+  WhiteSpace,
+];
+
+/**
+ * Tokens used inside variables {{ ... }}
+ */
+const variableModeTokens: TokenType[] = [
+  // End variable (pop mode)
+  VariableCloseVariable,
+
+  // Default operator
   DefaultOp,
 
   // Literals
@@ -220,16 +372,73 @@ export const allTokens: TokenType[] = [
   NumberLiteral,
   Identifier,
 
-  // Punctuation
+  // Whitespace (skipped)
+  WhiteSpace,
+];
+
+// =============================================================================
+// MULTI-MODE LEXER DEFINITION
+// =============================================================================
+
+/**
+ * Multi-mode lexer configuration.
+ * Enables context-sensitive tokenization.
+ */
+const multiModeLexerDefinition: IMultiModeLexerDefinition = {
+  modes: {
+    DEFAULT_MODE: defaultModeTokens,
+    DIRECTIVE_MODE: directiveModeTokens,
+    VARIABLE_MODE: variableModeTokens,
+  },
+  defaultMode: 'DEFAULT_MODE',
+};
+
+/**
+ * All unique tokens (for parser configuration).
+ * Includes category tokens and all mode-specific variants.
+ *
+ * IMPORTANT: Category tokens must come BEFORE their child tokens
+ * in this array for Chevrotain to properly recognize them.
+ */
+export const allTokens: TokenType[] = [
+  // Categories first (abstract tokens)
+  VariableOpen,
+  VariableClose,
+
+  // Directive keywords
+  EndIf,
+  EndSection,
+  Else,
+  IfOpen,
+  ElseIf,
+  SectionOpen,
+  Import,
+  Include,
+
+  // Mode-specific variable tokens (extend categories)
+  VariableOpenDefault,
+  VariableOpenDirective,
+  VariableCloseVariable,
+  VariableCloseDirective,
+
+  // Operators and punctuation
+  Operator,
+  DefaultOp,
+  Equals,
+  CloseBracket,
   LParen,
   RParen,
-  CloseBracket,
   Comma,
 
-  // Whitespace (skipped in directive mode)
+  // Literals
+  StringLiteral,
+  NumberLiteral,
+  Identifier,
+
+  // Whitespace
   WhiteSpace,
 
-  // Plain text (catch-all, must be last)
+  // Text
   Text,
 ];
 
@@ -238,82 +447,53 @@ export const allTokens: TokenType[] = [
 // =============================================================================
 
 /**
- * Creates a new Echo lexer instance.
- *
- * TODO: Implement multi-mode lexer for proper context handling.
- * The current implementation is simplified and doesn't handle all edge cases.
- *
- * A proper implementation should use Chevrotain's multi-mode feature:
- * - DEFAULT_MODE: Look for [# or {{ to switch modes
- * - VARIABLE_MODE: Parse variable expressions until }}
- * - DIRECTIVE_MODE: Parse directive syntax until ]
+ * The Echo multi-mode lexer instance.
+ * Uses different token sets depending on the current lexing context.
  */
-export const EchoLexer = new Lexer(allTokens, {
-  // Ensure the lexer reports all errors
-  ensureOptimizations: true,
+export const EchoLexer = new Lexer(multiModeLexerDefinition, {
+  // Note: We disable ensureOptimizations because the Text token uses
+  // a complement set pattern which cannot be optimized by Chevrotain.
+  // The lexer still works correctly, just without first-char optimizations.
+  ensureOptimizations: false,
+  positionTracking: 'full', // Required for source locations
 });
+
+// =============================================================================
+// PUBLIC API
+// =============================================================================
 
 /**
  * Tokenize an Echo template.
  *
  * @param template - The template string to tokenize
  * @returns Lexer result with tokens and errors
+ *
+ * @example
+ * ```typescript
+ * const result = tokenize('Hello {{name}}!');
+ * if (result.errors.length > 0) {
+ *   console.error('Lexer errors:', result.errors);
+ * } else {
+ *   console.log('Tokens:', result.tokens);
+ * }
+ * ```
  */
 export function tokenize(template: string) {
   return EchoLexer.tokenize(template);
 }
 
-// =============================================================================
-// IMPLEMENTATION NOTES
-// =============================================================================
-
-/*
-NEXT STEPS TO IMPLEMENT:
-
-1. MULTI-MODE LEXER
-   The current single-mode lexer is insufficient. Implement a multi-mode lexer:
-
-   const multiModeLexerDefinition = {
-     modes: {
-       default_mode: [
-         // Look for start of directives/variables
-         { ...IfOpen, PUSH_MODE: 'directive_mode' },
-         { ...VariableOpen, PUSH_MODE: 'variable_mode' },
-         Text // Everything else
-       ],
-       variable_mode: [
-         { ...VariableClose, POP_MODE: true },
-         Identifier,
-         DefaultOp,
-         StringLiteral,
-         // etc.
-       ],
-       directive_mode: [
-         { ...CloseBracket, POP_MODE: true },
-         VariableOpen, // Can have nested variables in conditions
-         Operator,
-         // etc.
-       ]
-     },
-     defaultMode: 'default_mode'
-   };
-
-2. HANDLE TEXT PROPERLY
-   The Text token pattern needs to be more sophisticated:
-   - Match text that doesn't start [# or {{
-   - Handle escaped sequences if needed
-
-3. ERROR MESSAGES
-   Add meaningful error messages for:
-   - Unclosed {{ or }}
-   - Unclosed [# or ]
-   - Invalid operator names
-   - Unterminated strings
-
-4. TESTS
-   Create lexer.test.ts with tests for:
-   - Simple variable: "{{name}}"
-   - Conditional: "[#IF {{x}} #equals(y)]...[END IF]"
-   - Nested: "[#IF {{a}}]{{b}}[END IF]"
-   - Edge cases: Empty template, only text, etc.
-*/
+/**
+ * Format lexer errors for display.
+ *
+ * @param errors - Lexer errors from tokenize()
+ * @returns Formatted error messages
+ */
+export function formatLexerErrors(
+  errors: ReturnType<typeof tokenize>['errors']
+): string[] {
+  return errors.map((error) => {
+    const line = error.line ?? 1;
+    const column = error.column ?? 1;
+    return `Lexer error at line ${line}, column ${column}: ${error.message}`;
+  });
+}

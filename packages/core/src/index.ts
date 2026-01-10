@@ -4,10 +4,20 @@
  * This is the main entry point for @echo-pdk/core.
  * It exports the createEcho factory function and all public types.
  *
- * IMPLEMENTATION NOTES:
- * - The createEcho function creates a configured Echo instance
- * - It wires together the parser, evaluator, and renderer
- * - Plugins are loaded and operators registered during initialization
+ * @example
+ * ```typescript
+ * import { createEcho } from '@echo-pdk/core';
+ *
+ * const echo = createEcho({
+ *   strict: false,
+ *   aiProvider: {
+ *     type: 'openai',
+ *     apiKey: process.env.OPENAI_API_KEY,
+ *   }
+ * });
+ *
+ * const result = await echo.render(template, { name: 'Alice' });
+ * ```
  */
 
 // Re-export all types
@@ -45,98 +55,222 @@ import type {
   ValidationResult,
   OperatorDefinition,
   EchoPlugin,
+  EchoError,
+  EchoWarning,
 } from './types.js';
 
-// Import submodules (to be implemented)
-// import { createLexer } from './parser/lexer.js';
-// import { createParser } from './parser/parser.js';
-// import { createEvaluator } from './evaluator/evaluator.js';
-// import { createRenderer } from './renderer/renderer.js';
-// import { builtinOperators } from './evaluator/operators.js';
+// Import submodules
+import { parse } from './parser/parser.js';
+import { evaluate } from './evaluator/evaluator.js';
+import { render } from './renderer/renderer.js';
+import { builtinOperators, getOperator } from './evaluator/operators.js';
+import { createOpenAIProvider, withCache } from './ai-judge/index.js';
+
+// Re-export utilities for advanced usage
+export { parse } from './parser/parser.js';
+export { evaluate, resolveVariable } from './evaluator/evaluator.js';
+export { render, renderTemplate } from './renderer/renderer.js';
+export { builtinOperators, getOperator } from './evaluator/operators.js';
+export {
+  createTextNode,
+  createVariableNode,
+  createConditionalNode,
+  createConditionExpr,
+  createSectionNode,
+  createImportNode,
+  createIncludeNode,
+  collectAiJudgeConditions,
+  visitNode,
+  visitNodes,
+  prettyPrint,
+} from './parser/ast.js';
+
+/**
+ * Environment variable name for API key.
+ */
+const ENV_API_KEY = 'OPENAI_API_KEY';
+const ENV_ECHO_API_KEY = 'ECHO_API_KEY';
 
 /**
  * Creates a new Echo instance with the given configuration.
  *
+ * The Echo instance provides methods for parsing, validating, and rendering
+ * Echo templates with support for:
+ * - Variable interpolation: {{name}}, {{user.email}}
+ * - Conditionals: [#IF {{var}} #operator(arg)]...[END IF]
+ * - Sections: [#SECTION name="x"]...[END SECTION]
+ * - Includes: [#INCLUDE section_name]
+ * - AI-powered conditions: #ai_judge(question)
+ *
  * @param config - Configuration options for the Echo instance
  * @returns A configured Echo instance
  *
- * @example
+ * @example Basic usage
  * ```typescript
  * import { createEcho } from '@echo-pdk/core';
  *
+ * const echo = createEcho();
+ * const output = await echo.render('Hello {{name}}!', { name: 'World' });
+ * // Output: "Hello World!"
+ * ```
+ *
+ * @example With AI provider
+ * ```typescript
  * const echo = createEcho({
- *   strict: true,
  *   aiProvider: {
  *     type: 'openai',
- *     apiKey: process.env.OPENAI_API_KEY
+ *     apiKey: process.env.OPENAI_API_KEY,
+ *     model: 'gpt-4o-mini',
  *   }
  * });
  *
- * const result = await echo.render(template, { name: 'Alice' });
+ * const template = `
+ * [#IF {{content}} #ai_judge(Is this appropriate for children?)]
+ *   Safe content: {{content}}
+ * [ELSE]
+ *   Content flagged for review.
+ * [END IF]
+ * `;
+ *
+ * const output = await echo.render(template, { content: userContent });
+ * ```
+ *
+ * @example With plugins
+ * ```typescript
+ * const echo = createEcho();
+ *
+ * echo.loadPlugin({
+ *   name: 'custom-operators',
+ *   version: '1.0.0',
+ *   operators: {
+ *     isEmpty: {
+ *       type: 'unary',
+ *       handler: (value) => !value || value === '',
+ *       description: 'Check if value is empty',
+ *     }
+ *   }
+ * });
  * ```
  */
-export function createEcho(_config: EchoConfig = {}): Echo {
-  // TODO: Implementation
-  //
-  // IMPLEMENTATION STEPS:
-  // 1. Initialize the lexer (from ./parser/lexer.ts)
-  // 2. Initialize the parser (from ./parser/parser.ts)
-  // 3. Initialize the evaluator with config (from ./evaluator/evaluator.ts)
-  // 4. Initialize the renderer (from ./renderer/renderer.ts)
-  // 5. Register built-in operators
-  // 6. Load plugins if specified in config
-  // 7. Return the Echo interface implementation
-
+export function createEcho(config: EchoConfig = {}): Echo {
+  // Custom operators registry (starts with built-in operators)
   const operators = new Map<string, OperatorDefinition>();
+
+  // Register all built-in operators
+  for (const [name, definition] of Object.entries(builtinOperators)) {
+    operators.set(name, definition);
+  }
+
+  // Set up AI Judge operator if provider is configured
+  setupAiJudgeOperator(config, operators);
+
+  // Loaded plugins
   const plugins: EchoPlugin[] = [];
 
-  // Placeholder implementation - replace with actual implementation
+  // The Echo instance
   const echo: Echo = {
-    parse(_template: string): ParseResult {
-      // TODO: Implement using lexer and parser
-      // 1. Tokenize with lexer
-      // 2. Parse tokens into AST
-      // 3. Return ParseResult with AST or errors
-      throw new Error('Not implemented: parse()');
+    /**
+     * Parse a template string into an AST.
+     */
+    parse(template: string): ParseResult {
+      return parse(template);
     },
 
+    /**
+     * Render a template with the given context.
+     */
     async render(
-      _template: string,
-      _context: Record<string, unknown>
+      template: string,
+      context: Record<string, unknown>
     ): Promise<string> {
-      // TODO: Implement full render pipeline
-      // 1. Parse template to AST
-      // 2. Collect all AI judge conditions
-      // 3. Evaluate AI judges in parallel (optimization!)
-      // 4. Evaluate AST with context + resolved AI judges
-      // 5. Render evaluated AST to string
-      throw new Error('Not implemented: render()');
+      // Step 1: Parse
+      const parseResult = parse(template);
+
+      if (!parseResult.success || !parseResult.ast) {
+        const errorMessages = parseResult.errors
+          .map((e) => formatErrorMessage(e))
+          .join('\n');
+        throw new Error(`Parse error:\n${errorMessages}`);
+      }
+
+      // Step 2: Evaluate
+      const { ast: evaluatedAst } = await evaluate(
+        parseResult.ast,
+        context,
+        config,
+        operators
+      );
+
+      // Step 3: Render
+      return render(evaluatedAst, {
+        context,
+        config,
+        trim: false,
+        collapseNewlines: true,
+      });
     },
 
-    validate(_template: string): ValidationResult {
-      // TODO: Implement validation
-      // 1. Parse template
-      // 2. Check for undefined variables (if context schema available)
-      // 3. Check for unknown operators
-      // 4. Check for unclosed blocks
-      // 5. Return ValidationResult
-      throw new Error('Not implemented: validate()');
+    /**
+     * Validate a template for syntax and semantic errors.
+     */
+    validate(template: string): ValidationResult {
+      const errors: EchoError[] = [];
+      const warnings: EchoWarning[] = [];
+
+      // Step 1: Parse the template
+      const parseResult = parse(template);
+
+      if (!parseResult.success) {
+        return {
+          valid: false,
+          errors: parseResult.errors,
+          warnings: [],
+        };
+      }
+
+      // Step 2: Semantic validation
+      if (parseResult.ast) {
+        validateAst(parseResult.ast, errors, warnings, config);
+      }
+
+      return {
+        valid: errors.length === 0,
+        errors,
+        warnings,
+      };
     },
 
+    /**
+     * Load a language definition from a YAML file.
+     */
     loadLanguage(_yamlPath: string): void {
       // TODO: Implement language loading
-      // 1. Read YAML file
-      // 2. Parse language definition
-      // 3. Register operators from definition
-      // 4. Store validation rules
-      throw new Error('Not implemented: loadLanguage()');
+      // This would load custom operator definitions from a YAML file
+      // For now, we use the built-in operators
+      throw new Error(
+        'Language loading not yet implemented. Use registerOperator() to add custom operators.'
+      );
     },
 
+    /**
+     * Register a custom operator.
+     */
     registerOperator(name: string, definition: OperatorDefinition): void {
       operators.set(name, definition);
     },
 
+    /**
+     * Load a plugin.
+     */
     loadPlugin(plugin: EchoPlugin): void {
+      // Validate plugin structure
+      if (!plugin.name || typeof plugin.name !== 'string') {
+        throw new Error('Plugin must have a name');
+      }
+      if (!plugin.version || typeof plugin.version !== 'string') {
+        throw new Error('Plugin must have a version');
+      }
+
       plugins.push(plugin);
 
       // Register plugin operators
@@ -153,7 +287,199 @@ export function createEcho(_config: EchoConfig = {}): Echo {
     },
   };
 
+  // Load plugins specified in config
+  if (config.plugins && config.plugins.length > 0) {
+    // TODO: Implement plugin path loading
+    // For now, plugins must be loaded via loadPlugin()
+    console.warn(
+      'Plugin paths in config not yet supported. Use loadPlugin() instead.'
+    );
+  }
+
   return echo;
+}
+
+/**
+ * Set up the AI Judge operator with the configured provider.
+ */
+function setupAiJudgeOperator(
+  config: EchoConfig,
+  operators: Map<string, OperatorDefinition>
+): void {
+  // Check for API key from config or environment
+  const apiKey =
+    config.aiProvider?.apiKey ||
+    process.env[ENV_ECHO_API_KEY] ||
+    process.env[ENV_API_KEY];
+
+  if (!apiKey) {
+    // No API key - AI Judge will throw when used
+    return;
+  }
+
+  // Create the provider based on type
+  const providerType = config.aiProvider?.type ?? 'openai';
+
+  if (providerType !== 'openai') {
+    console.warn(`AI provider type '${providerType}' not yet supported. Using OpenAI.`);
+  }
+
+  try {
+    // Create OpenAI provider with caching
+    const provider = createOpenAIProvider({
+      type: 'openai',
+      apiKey,
+      model: config.aiProvider?.model,
+      timeout: config.aiProvider?.timeout,
+    });
+
+    const cachedProvider = withCache(provider);
+
+    // Register the AI Judge operator with the provider
+    operators.set('ai_judge', {
+      type: 'ai',
+      description: 'LLM-evaluated boolean condition',
+      example: '{{content}} #ai_judge(Is this appropriate?)',
+      handler: async (value: unknown, question: unknown): Promise<boolean> => {
+        if (typeof question !== 'string') {
+          throw new Error('AI Judge requires a question string as argument');
+        }
+        return cachedProvider.evaluate(value, question);
+      },
+    });
+  } catch (error) {
+    // Provider creation failed - AI Judge will throw when used
+    console.warn('Failed to create AI provider:', error);
+  }
+}
+
+/**
+ * Validate the AST for semantic errors.
+ */
+function validateAst(
+  ast: import('./types.js').ASTNode[],
+  errors: EchoError[],
+  warnings: EchoWarning[],
+  config: EchoConfig
+): void {
+  const knownSections = new Set<string>();
+
+  // First pass: collect section names
+  collectSectionNames(ast, knownSections);
+
+  // Second pass: validate
+  validateNodes(ast, errors, warnings, knownSections, config);
+}
+
+/**
+ * Collect all section names from the AST.
+ */
+function collectSectionNames(
+  nodes: import('./types.js').ASTNode[],
+  sections: Set<string>
+): void {
+  for (const node of nodes) {
+    if (node.type === 'section') {
+      sections.add(node.name);
+      collectSectionNames(node.body, sections);
+    } else if (node.type === 'conditional') {
+      collectSectionNames(node.consequent, sections);
+      if (node.alternate) {
+        if (Array.isArray(node.alternate)) {
+          collectSectionNames(node.alternate, sections);
+        } else {
+          collectSectionNames([node.alternate], sections);
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Validate AST nodes for semantic errors.
+ */
+function validateNodes(
+  nodes: import('./types.js').ASTNode[],
+  errors: EchoError[],
+  warnings: EchoWarning[],
+  knownSections: Set<string>,
+  config: EchoConfig
+): void {
+  for (const node of nodes) {
+    switch (node.type) {
+      case 'conditional': {
+        // Check if operator exists
+        const operatorName = node.condition.operator;
+        const operator = getOperator(operatorName);
+        if (!operator) {
+          const error: EchoError = {
+            code: 'UNKNOWN_OPERATOR',
+            message: `Unknown operator: #${operatorName}`,
+            location: node.location,
+          };
+          if (config.strict) {
+            errors.push(error);
+          } else {
+            warnings.push(error);
+          }
+        }
+
+        // Recurse into branches
+        validateNodes(node.consequent, errors, warnings, knownSections, config);
+        if (node.alternate) {
+          if (Array.isArray(node.alternate)) {
+            validateNodes(node.alternate, errors, warnings, knownSections, config);
+          } else {
+            validateNodes([node.alternate], errors, warnings, knownSections, config);
+          }
+        }
+        break;
+      }
+
+      case 'include': {
+        // Check if section exists
+        if (!knownSections.has(node.name)) {
+          const error: EchoError = {
+            code: 'UNKNOWN_SECTION',
+            message: `Unknown section: ${node.name}`,
+            location: node.location,
+          };
+          if (config.strict) {
+            errors.push(error);
+          } else {
+            warnings.push(error);
+          }
+        }
+        break;
+      }
+
+      case 'section': {
+        // Recurse into section body
+        validateNodes(node.body, errors, warnings, knownSections, config);
+        break;
+      }
+
+      case 'import': {
+        // Warn about imports (not yet fully supported)
+        warnings.push({
+          code: 'IMPORT_NOT_RESOLVED',
+          message: `Import will not be resolved: ${node.path}`,
+          location: node.location,
+        });
+        break;
+      }
+    }
+  }
+}
+
+/**
+ * Format an error message with location if available.
+ */
+function formatErrorMessage(error: EchoError): string {
+  if (error.location) {
+    return `${error.message} at line ${error.location.startLine}, column ${error.location.startColumn}`;
+  }
+  return error.message;
 }
 
 /**
