@@ -64,6 +64,14 @@ export interface EvaluatedNode {
 // =============================================================================
 
 /**
+ * Options for variable resolution.
+ */
+export interface ResolveVariableOptions {
+  /** Whether to throw on malformed paths (default: false) */
+  strict?: boolean;
+}
+
+/**
  * Resolve a variable path from context.
  *
  * Supports:
@@ -74,6 +82,7 @@ export interface EvaluatedNode {
  *
  * @param path - The variable path
  * @param context - The context object
+ * @param options - Resolution options
  * @returns The resolved value or undefined
  *
  * @example
@@ -85,8 +94,11 @@ export interface EvaluatedNode {
  */
 export function resolveVariable(
   path: string,
-  context: Record<string, unknown>
+  context: Record<string, unknown>,
+  options: ResolveVariableOptions = {}
 ): unknown {
+  const { strict = false } = options;
+
   // Handle array access within parts: "items[0].name" -> ["items[0]", "name"]
   // Then further split "items[0]" into array access
   const parts = path.split('.');
@@ -95,6 +107,12 @@ export function resolveVariable(
   for (const part of parts) {
     if (current === undefined || current === null) {
       return undefined;
+    }
+
+    // Validate array access patterns before splitting
+    // This catches malformed patterns like items[], items[abc], items[-1]
+    if (strict) {
+      validateArrayAccessPattern(part, path);
     }
 
     // Check for array access pattern: "items[0]" or "items[0][1]"
@@ -112,6 +130,11 @@ export function resolveVariable(
         if (Array.isArray(current)) {
           current = current[index];
         } else {
+          if (strict) {
+            throw new Error(
+              `Cannot access index [${index}] on non-array value in path "${path}"`
+            );
+          }
           return undefined;
         }
       } else {
@@ -122,6 +145,53 @@ export function resolveVariable(
   }
 
   return current;
+}
+
+/**
+ * Validate array access patterns in a path segment.
+ * Throws descriptive errors for malformed patterns in strict mode.
+ *
+ * @param segment - A single path segment (e.g., "items[0]" or "name")
+ * @param fullPath - The full path for error messages
+ */
+function validateArrayAccessPattern(segment: string, fullPath: string): void {
+  // Find all bracket patterns in the segment
+  const bracketPattern = /\[([^\]]*)\]/g;
+  let match;
+
+  while ((match = bracketPattern.exec(segment)) !== null) {
+    const bracketContent = match[1] ?? '';
+
+    // Empty brackets: items[]
+    if (bracketContent === '') {
+      throw new Error(
+        `Invalid array access "[]" in path "${fullPath}". Array index must be a non-negative integer.`
+      );
+    }
+
+    // Non-numeric content: items[abc]
+    if (!/^\d+$/.test(bracketContent)) {
+      // Check for negative index
+      if (/^-\d+$/.test(bracketContent)) {
+        throw new Error(
+          `Invalid array access "[${bracketContent}]" in path "${fullPath}". Negative indices are not supported.`
+        );
+      }
+
+      throw new Error(
+        `Invalid array access "[${bracketContent}]" in path "${fullPath}". Array index must be a non-negative integer.`
+      );
+    }
+  }
+
+  // Check for unclosed brackets: items[0
+  const openBrackets = (segment.match(/\[/g) || []).length;
+  const closeBrackets = (segment.match(/\]/g) || []).length;
+  if (openBrackets !== closeBrackets) {
+    throw new Error(
+      `Malformed array access in path "${fullPath}". Unclosed or unmatched brackets.`
+    );
+  }
 }
 
 // =============================================================================
@@ -140,7 +210,9 @@ export async function evaluateCondition(
   ctx: EvaluationContext
 ): Promise<boolean> {
   // Get the variable value
-  const value = resolveVariable(condition.variable, ctx.variables);
+  const value = resolveVariable(condition.variable, ctx.variables, {
+    strict: ctx.config.strict,
+  });
 
   // Check for pre-resolved AI judge result
   if (condition.isAiJudge) {
@@ -215,7 +287,9 @@ export async function preEvaluateAiJudges(
 
   // Prepare evaluation promises
   const evaluations = aiJudges.map(async ({ condition }) => {
-    const value = resolveVariable(condition.variable, ctx.variables);
+    const value = resolveVariable(condition.variable, ctx.variables, {
+      strict: ctx.config.strict,
+    });
     const cacheKey = createAiJudgeCacheKey(
       condition.variable,
       value,

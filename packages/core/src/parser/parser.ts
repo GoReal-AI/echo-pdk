@@ -439,19 +439,16 @@ class EchoAstVisitor extends BaseCstVisitor {
 
   /**
    * Visit an ELSE IF block and create a ConditionalNode with alternate.
-   * Note: CstNode has a `children` property that contains the actual parsed elements.
+   *
+   * This method handles the CstNode structure from Chevrotain, using runtime
+   * validation to safely access the children property.
    */
   private visitElseIfBlockWithAlternate(
     ctx: CstNode,
     nextAlternate?: ConditionalNode | ASTNode[]
   ): ConditionalNode {
-    // Access children via the children property (Chevrotain CstNode structure)
-    const children = ctx.children as {
-      ElseIf?: IToken[];
-      CloseBracket?: IToken[];
-      condition?: CstNode[];
-      node?: CstNode[];
-    };
+    // Safely extract children with runtime validation
+    const children = getCstChildren<CstElseIfBlockContext>(ctx, 'elseIfBlock');
 
     const elseIfToken = children.ElseIf?.[0];
     const closeBracketToken = children.CloseBracket?.[0];
@@ -480,9 +477,14 @@ class EchoAstVisitor extends BaseCstVisitor {
 
   /**
    * Visit an ELSE IF block.
+   *
+   * Note: When called directly by the visitor, ctx is the children object.
+   * We wrap it to match the CstNode structure expected by visitElseIfBlockWithAlternate.
    */
   elseIfBlock(ctx: CstElseIfBlockContext): ConditionalNode {
-    return this.visitElseIfBlockWithAlternate(ctx as unknown as CstNode, undefined);
+    // Wrap the context in a CstNode-like structure for visitElseIfBlockWithAlternate
+    const wrappedCtx = { children: ctx } as CstNode;
+    return this.visitElseIfBlockWithAlternate(wrappedCtx, undefined);
   }
 
   /**
@@ -723,6 +725,41 @@ interface CstIncludeNodeContext {
 // =============================================================================
 // UTILITY FUNCTIONS
 // =============================================================================
+
+/**
+ * Safely extract children from a CstNode with runtime validation.
+ *
+ * Chevrotain's CstNode has a `children` property containing the parsed elements.
+ * This helper provides type-safe access with runtime validation to guard against
+ * unexpected structure changes.
+ *
+ * @param ctx - The CstNode to extract children from
+ * @param expectedRule - Optional rule name to validate (for better error messages)
+ * @returns The children object, typed as T
+ * @throws Error if children property is missing or invalid
+ */
+function getCstChildren<T>(ctx: CstNode, expectedRule?: string): T {
+  if (!ctx || typeof ctx !== 'object') {
+    throw new Error(
+      `Invalid CST node${expectedRule ? ` for rule "${expectedRule}"` : ''}: expected object, got ${typeof ctx}`
+    );
+  }
+
+  if (!('children' in ctx)) {
+    throw new Error(
+      `Invalid CST node${expectedRule ? ` for rule "${expectedRule}"` : ''}: missing "children" property`
+    );
+  }
+
+  const children = ctx.children;
+  if (!children || typeof children !== 'object') {
+    throw new Error(
+      `Invalid CST node${expectedRule ? ` for rule "${expectedRule}"` : ''}: "children" must be an object`
+    );
+  }
+
+  return children as T;
+}
 
 /**
  * Extract source location from a token.

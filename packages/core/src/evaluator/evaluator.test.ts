@@ -70,6 +70,60 @@ describe('resolveVariable', () => {
     const context = { user: null };
     expect(resolveVariable('user.name', context)).toBeUndefined();
   });
+
+  describe('strict mode validation', () => {
+    it('should throw for empty brackets in strict mode', () => {
+      const context = { items: ['a', 'b', 'c'] };
+      expect(() => resolveVariable('items[]', context, { strict: true })).toThrow(
+        'Invalid array access "[]" in path "items[]". Array index must be a non-negative integer.'
+      );
+    });
+
+    it('should throw for non-numeric index in strict mode', () => {
+      const context = { items: ['a', 'b', 'c'] };
+      expect(() => resolveVariable('items[abc]', context, { strict: true })).toThrow(
+        'Invalid array access "[abc]" in path "items[abc]". Array index must be a non-negative integer.'
+      );
+    });
+
+    it('should throw for negative index in strict mode', () => {
+      const context = { items: ['a', 'b', 'c'] };
+      expect(() => resolveVariable('items[-1]', context, { strict: true })).toThrow(
+        'Invalid array access "[-1]" in path "items[-1]". Negative indices are not supported.'
+      );
+    });
+
+    it('should throw for unclosed brackets in strict mode', () => {
+      const context = { items: ['a', 'b', 'c'] };
+      expect(() => resolveVariable('items[0', context, { strict: true })).toThrow(
+        'Malformed array access in path "items[0". Unclosed or unmatched brackets.'
+      );
+    });
+
+    it('should throw when accessing index on non-array in strict mode', () => {
+      const context = { name: 'Alice' };
+      expect(() => resolveVariable('name[0]', context, { strict: true })).toThrow(
+        'Cannot access index [0] on non-array value in path "name[0]"'
+      );
+    });
+
+    it('should return undefined for malformed patterns in lenient mode', () => {
+      const context = { items: ['a', 'b', 'c'] };
+      // In lenient mode (default), these should return undefined without throwing
+      expect(resolveVariable('items[]', context)).toBeUndefined();
+      expect(resolveVariable('items[abc]', context)).toBeUndefined();
+      expect(resolveVariable('items[-1]', context)).toBeUndefined();
+    });
+
+    it('should work correctly with valid patterns in strict mode', () => {
+      const context = {
+        items: ['a', 'b', 'c'],
+        users: [{ name: 'Alice' }],
+      };
+      expect(resolveVariable('items[0]', context, { strict: true })).toBe('a');
+      expect(resolveVariable('users[0].name', context, { strict: true })).toBe('Alice');
+    });
+  });
 });
 
 describe('evaluateConditional', () => {

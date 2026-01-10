@@ -150,7 +150,9 @@ function renderText(node: TextNode): string {
  * @returns The variable value as string
  */
 function renderVariable(node: VariableNode, options: RenderOptions): string {
-  const value = resolveVariable(node.path, options.context);
+  const value = resolveVariable(node.path, options.context, {
+    strict: options.config?.strict,
+  });
 
   // Handle undefined
   if (value === undefined || value === null) {

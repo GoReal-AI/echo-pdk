@@ -270,6 +270,48 @@ Suggest popular movies.
 
       expect(result.warnings.some((w) => w.code === 'IMPORT_NOT_RESOLVED')).toBe(true);
     });
+
+    it('should recognize custom operators registered via registerOperator', () => {
+      const echo = createEcho({ strict: true });
+
+      // Register a custom operator
+      echo.registerOperator('customOp', {
+        type: 'unary',
+        handler: () => true,
+        description: 'Custom operator for testing',
+      });
+
+      // Validation should NOT warn about this operator
+      const result = echo.validate('[#IF {{x}} #customOp]yes[END IF]');
+
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+      expect(result.warnings.some((w) => w.code === 'UNKNOWN_OPERATOR')).toBe(false);
+    });
+
+    it('should recognize custom operators loaded via plugin', () => {
+      const echo = createEcho({ strict: true });
+
+      // Load a plugin with custom operator
+      echo.loadPlugin({
+        name: 'test-plugin',
+        version: '1.0.0',
+        operators: {
+          pluginOp: {
+            type: 'unary',
+            handler: () => true,
+            description: 'Plugin operator for testing',
+          },
+        },
+      });
+
+      // Validation should NOT warn about this operator
+      const result = echo.validate('[#IF {{x}} #pluginOp]yes[END IF]');
+
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+      expect(result.warnings.some((w) => w.code === 'UNKNOWN_OPERATOR')).toBe(false);
+    });
   });
 
   describe('custom operators', () => {

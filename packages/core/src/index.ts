@@ -68,7 +68,11 @@ import { createOpenAIProvider, withCache } from './ai-judge/index.js';
 
 // Re-export utilities for advanced usage
 export { parse } from './parser/parser.js';
-export { evaluate, resolveVariable } from './evaluator/evaluator.js';
+export {
+  evaluate,
+  resolveVariable,
+  type ResolveVariableOptions,
+} from './evaluator/evaluator.js';
 export { render, renderTemplate } from './renderer/renderer.js';
 export { builtinOperators, getOperator } from './evaluator/operators.js';
 export {
@@ -230,7 +234,7 @@ export function createEcho(config: EchoConfig = {}): Echo {
 
       // Step 2: Semantic validation
       if (parseResult.ast) {
-        validateAst(parseResult.ast, errors, warnings, config);
+        validateAst(parseResult.ast, errors, warnings, config, operators);
       }
 
       return {
@@ -360,7 +364,8 @@ function validateAst(
   ast: import('./types.js').ASTNode[],
   errors: EchoError[],
   warnings: EchoWarning[],
-  config: EchoConfig
+  config: EchoConfig,
+  operators: Map<string, OperatorDefinition>
 ): void {
   const knownSections = new Set<string>();
 
@@ -368,7 +373,7 @@ function validateAst(
   collectSectionNames(ast, knownSections);
 
   // Second pass: validate
-  validateNodes(ast, errors, warnings, knownSections, config);
+  validateNodes(ast, errors, warnings, knownSections, config, operators);
 }
 
 /**
@@ -403,14 +408,15 @@ function validateNodes(
   errors: EchoError[],
   warnings: EchoWarning[],
   knownSections: Set<string>,
-  config: EchoConfig
+  config: EchoConfig,
+  operators: Map<string, OperatorDefinition>
 ): void {
   for (const node of nodes) {
     switch (node.type) {
       case 'conditional': {
-        // Check if operator exists
+        // Check if operator exists in instance operators or built-in operators
         const operatorName = node.condition.operator;
-        const operator = getOperator(operatorName);
+        const operator = operators.get(operatorName) ?? getOperator(operatorName);
         if (!operator) {
           const error: EchoError = {
             code: 'UNKNOWN_OPERATOR',
@@ -425,12 +431,12 @@ function validateNodes(
         }
 
         // Recurse into branches
-        validateNodes(node.consequent, errors, warnings, knownSections, config);
+        validateNodes(node.consequent, errors, warnings, knownSections, config, operators);
         if (node.alternate) {
           if (Array.isArray(node.alternate)) {
-            validateNodes(node.alternate, errors, warnings, knownSections, config);
+            validateNodes(node.alternate, errors, warnings, knownSections, config, operators);
           } else {
-            validateNodes([node.alternate], errors, warnings, knownSections, config);
+            validateNodes([node.alternate], errors, warnings, knownSections, config, operators);
           }
         }
         break;
@@ -455,7 +461,7 @@ function validateNodes(
 
       case 'section': {
         // Recurse into section body
-        validateNodes(node.body, errors, warnings, knownSections, config);
+        validateNodes(node.body, errors, warnings, knownSections, config, operators);
         break;
       }
 
