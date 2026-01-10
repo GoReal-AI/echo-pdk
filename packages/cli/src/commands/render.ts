@@ -2,9 +2,9 @@
  * @fileoverview Render Command - Render an Echo template
  *
  * Usage:
- *   echo-pdk render template.echo --context '{"name": "Alice"}'
- *   echo-pdk render template.echo --context-file context.json
- *   echo-pdk render template.echo --context-file context.json --output result.txt
+ *   echopdk render template.echo --context '{"name": "Alice"}'
+ *   echopdk render template.echo --context-file context.json
+ *   echopdk render template.echo --context-file context.json --output result.txt
  */
 
 import { readFile, writeFile } from 'fs/promises';
@@ -136,11 +136,11 @@ NEXT STEPS TO IMPLEMENT:
 
 3. MULTIPLE TEMPLATES
    Support glob patterns for batch rendering:
-   echo-pdk render "templates/*.echo" --context-file context.json --output-dir dist/
+   echopdk render "templates/*.echo" --context-file context.json --output-dir dist/
 
 4. STDIN INPUT
    Support reading template from stdin:
-   cat template.echo | echo-pdk render - --context '{"name": "Alice"}'
+   cat template.echo | echopdk render - --context '{"name": "Alice"}'
 
 5. PROGRESS REPORTING
    For AI judge conditions, show progress:

@@ -2,8 +2,8 @@
  * @fileoverview Validate Command - Validate Echo template syntax
  *
  * Usage:
- *   echo-pdk validate template.echo
- *   echo-pdk validate template.echo --strict
+ *   echopdk validate template.echo
+ *   echopdk validate template.echo --strict
  */
 
 import { readFile } from 'fs/promises';
@@ -131,22 +131,22 @@ NEXT STEPS TO IMPLEMENT:
 
 1. GLOB PATTERNS
    Support validating multiple files:
-   echo-pdk validate "templates/*.echo"
+   echopdk validate "templates/*.echo"
 
 2. JSON/SARIF OUTPUT
    For CI integration:
-   echo-pdk validate template.echo --format json
-   echo-pdk validate template.echo --format sarif
+   echopdk validate template.echo --format json
+   echopdk validate template.echo --format sarif
 
 3. FIX SUGGESTIONS
    Some errors might be auto-fixable:
-   echo-pdk validate template.echo --fix
+   echopdk validate template.echo --fix
 
 4. WATCH MODE
    Re-validate on file changes:
-   echo-pdk validate template.echo --watch
+   echopdk validate template.echo --watch
 
 5. CUSTOM RULES
    Load validation rules from config:
-   echo-pdk validate template.echo --config echo.config.yaml
+   echopdk validate template.echo --config echo.config.yaml
 */

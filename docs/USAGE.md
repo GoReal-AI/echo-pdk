@@ -22,17 +22,17 @@ This guide covers everything you need to use Echo PDK effectively, from basic te
 ## Installation
 
 ```bash
-npm install @echo-pdk/core
+npm install @echopdk/core
 # or
-pnpm add @echo-pdk/core
+pnpm add @echopdk/core
 # or
-yarn add @echo-pdk/core
+yarn add @echopdk/core
 ```
 
 ## Quick Start
 
 ```typescript
-import { createEcho } from '@echo-pdk/core';
+import { createEcho } from '@echopdk/core';
 
 // Create an Echo instance
 const echo = createEcho();
@@ -392,7 +392,7 @@ AI Judge (`#ai_judge`) uses an LLM to evaluate complex boolean conditions that c
 ### Configuration
 
 ```typescript
-import { createEcho } from '@echo-pdk/core';
+import { createEcho } from '@echopdk/core';
 
 const echo = createEcho({
   aiProvider: {
@@ -541,7 +541,7 @@ Plugins bundle multiple operators and can include lifecycle hooks.
 ### Creating a Plugin
 
 ```typescript
-import { definePlugin } from '@echo-pdk/core';
+import { definePlugin } from '@echopdk/core';
 
 const datePlugin = definePlugin({
   name: 'date-operators',
@@ -582,7 +582,7 @@ export default datePlugin;
 ### Loading Plugins
 
 ```typescript
-import { createEcho } from '@echo-pdk/core';
+import { createEcho } from '@echopdk/core';
 import datePlugin from './plugins/date-plugin';
 
 const echo = createEcho();
@@ -670,7 +670,7 @@ try {
 ### Full Configuration Options
 
 ```typescript
-import { createEcho } from '@echo-pdk/core';
+import { createEcho } from '@echopdk/core';
 
 const echo = createEcho({
   // Strict mode - throw on unknown operators and undefined variables

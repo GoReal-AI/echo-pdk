@@ -227,7 +227,7 @@ Did you mean: #equals, #contains, #exists?
 ```bash
 cd examples
 pnpm build
-echo-pdk render movie-recommender.echo --context '{"companions":"Shimon","genre":"SciFi"}'
+echopdk render movie-recommender.echo --context '{"companions":"Shimon","genre":"SciFi"}'
 ```
 
 ## Git Workflow

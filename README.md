@@ -141,10 +141,10 @@ Echo provides readable names for low-coders and short aliases for developers.
 npm install -g @echo-pdk/cli
 
 # Render a template
-echo-pdk render template.echo --context context.json
+echopdk render template.echo --context context.json
 
 # Validate syntax
-echo-pdk validate template.echo
+echopdk validate template.echo
 ```
 
 ## Packages

@@ -16,7 +16,7 @@ Demonstrates:
 
 **Run:**
 ```bash
-echo-pdk render movie-recommender.echo --context-file movie-recommender.context.json
+echopdk render movie-recommender.echo --context-file movie-recommender.context.json
 ```
 
 **Expected output:**
@@ -47,7 +47,7 @@ Demonstrates:
 
 1. Create a `.echo` file with your template
 2. Create a `.context.json` file with sample data
-3. Run: `echo-pdk render your-template.echo --context-file your-context.json`
+3. Run: `echopdk render your-template.echo --context-file your-context.json`
 
 ## Syntax Quick Reference
 
