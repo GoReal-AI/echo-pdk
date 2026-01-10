@@ -17,6 +17,7 @@
  * 3. Config file: echo.config.yaml (aiProvider.apiKey)
  */
 
+import { createHash } from 'crypto';
 import type { AIProviderConfig } from '../types.js';
 
 // =============================================================================
@@ -255,14 +256,48 @@ const cache = new Map<string, CacheEntry>();
 const CACHE_TTL = 5 * 60 * 1000;
 
 /**
- * Create a cache key for a value/question pair.
- *
- * @param value - The value being evaluated
- * @param question - The question asked
- * @returns A string key for the cache
+ * Options for creating a cache key.
  */
-export function createCacheKey(value: unknown, question: string): string {
-  return JSON.stringify({ value, question });
+export interface CacheKeyOptions {
+  /** The value being evaluated (can be very large, e.g., 200K tokens) */
+  value: unknown;
+  /** The boolean question to ask */
+  question: string;
+  /** The AI provider type (e.g., 'openai', 'anthropic') */
+  provider?: string;
+  /** The model identifier (e.g., 'gpt-4o-mini') */
+  model?: string;
+}
+
+/**
+ * Create a cache key for an AI judge evaluation.
+ *
+ * Uses SHA-256 hashing to create a fixed-size key regardless of input size.
+ * This is critical because the value being evaluated can be extremely large
+ * (e.g., a 200K token document). Storing the raw value as a Map key would
+ * cause severe memory bloat.
+ *
+ * The hash includes provider and model to prevent cache collisions when
+ * multiple Echo instances use different AI configurations.
+ *
+ * @param options - The cache key options
+ * @returns A 64-character hex hash string
+ *
+ * @example
+ * ```typescript
+ * const key = createCacheKey({
+ *   value: largeDocument,
+ *   question: 'Is this appropriate?',
+ *   provider: 'openai',
+ *   model: 'gpt-4o-mini',
+ * });
+ * // Returns: "a8f4b2c1e9d3..." (64 chars)
+ * ```
+ */
+export function createCacheKey(options: CacheKeyOptions): string {
+  const { value, question, provider, model } = options;
+  const data = JSON.stringify({ value, question, provider, model });
+  return createHash('sha256').update(data).digest('hex');
 }
 
 /**
@@ -312,15 +347,32 @@ export function getCacheSize(): number {
 }
 
 /**
+ * Options for the caching wrapper.
+ */
+export interface WithCacheOptions {
+  /** The AI provider type for cache key isolation */
+  providerType: string;
+  /** The model identifier for cache key isolation */
+  model: string;
+}
+
+/**
  * Wrap an AI provider with caching.
  *
+ * The cache is isolated by provider type and model to prevent collisions
+ * when multiple Echo instances use different AI configurations.
+ *
  * @param provider - The AI provider to wrap
+ * @param options - Cache options including provider/model for key isolation
  * @returns A caching wrapper around the provider
  *
  * @example
  * ```typescript
  * const provider = createOpenAIProvider(config);
- * const cachedProvider = withCache(provider);
+ * const cachedProvider = withCache(provider, {
+ *   providerType: 'openai',
+ *   model: 'gpt-4o-mini',
+ * });
  *
  * // First call hits the API
  * const result1 = await cachedProvider.evaluate(value, question);
@@ -329,10 +381,17 @@ export function getCacheSize(): number {
  * const result2 = await cachedProvider.evaluate(value, question);
  * ```
  */
-export function withCache(provider: AIProvider): AIProvider {
+export function withCache(provider: AIProvider, options: WithCacheOptions): AIProvider {
+  const { providerType, model } = options;
+
   return {
     async evaluate(value: unknown, question: string): Promise<boolean> {
-      const key = createCacheKey(value, question);
+      const key = createCacheKey({
+        value,
+        question,
+        provider: providerType,
+        model,
+      });
 
       // Check cache first
       const cached = getCached(key);

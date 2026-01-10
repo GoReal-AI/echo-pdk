@@ -478,13 +478,20 @@ class EchoAstVisitor extends BaseCstVisitor {
   /**
    * Visit an ELSE IF block.
    *
-   * Note: When called directly by the visitor, ctx is the children object.
-   * We wrap it to match the CstNode structure expected by visitElseIfBlockWithAlternate.
+   * NOTE: This method exists to satisfy Chevrotain's visitor validation but should
+   * never be called directly. ELSE IF blocks are only meaningful within the context
+   * of a conditional chain, where they need the `nextAlternate` parameter.
+   *
+   * Use `visitElseIfBlockWithAlternate` instead, which is called from `conditionalNode`
+   * to properly build the ELSE IF chain with alternates.
+   *
+   * @throws Error always - this method should not be called directly
    */
-  elseIfBlock(ctx: CstElseIfBlockContext): ConditionalNode {
-    // Wrap the context in a CstNode-like structure for visitElseIfBlockWithAlternate
-    const wrappedCtx = { children: ctx } as CstNode;
-    return this.visitElseIfBlockWithAlternate(wrappedCtx, undefined);
+  elseIfBlock(_ctx: CstElseIfBlockContext): ConditionalNode {
+    throw new Error(
+      'elseIfBlock visitor should not be called directly. ' +
+      'ELSE IF blocks are processed via visitElseIfBlockWithAlternate from conditionalNode.'
+    );
   }
 
   /**
