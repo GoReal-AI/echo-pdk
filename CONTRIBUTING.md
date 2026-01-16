@@ -10,7 +10,7 @@ The easiest way to extend Echo is by creating a plugin:
 
 ```typescript
 // my-plugin/index.ts
-import { definePlugin } from '@echo-pdk/core';
+import { definePlugin } from '@goreal-ai/echo-pdk';
 
 export default definePlugin({
   name: 'my-custom-operators',
@@ -44,7 +44,7 @@ mkdir my-echo-plugin && cd my-echo-plugin
 npm init
 
 # Install Echo as peer dependency
-npm install @echo-pdk/core --save-peer
+npm install @goreal-ai/echo-pdk --save-peer
 
 # Develop and test
 npm test

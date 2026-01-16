@@ -61,15 +61,15 @@ Recommend one movie based on these preferences.
 ## Installation
 
 ```bash
-npm install @echo-pdk/core
+npm install @goreal-ai/echo-pdk
 # or
-pnpm add @echo-pdk/core
+pnpm add @goreal-ai/echo-pdk
 ```
 
 ## Usage
 
 ```typescript
-import { createEcho } from '@echo-pdk/core';
+import { createEcho } from '@goreal-ai/echo-pdk';
 
 const echo = createEcho();
 
@@ -138,7 +138,7 @@ Echo provides readable names for low-coders and short aliases for developers.
 
 ```bash
 # Install CLI
-npm install -g @echo-pdk/cli
+npm install -g @goreal-ai/echo-pdk-cli
 
 # Render a template
 echopdk render template.echo --context context.json
@@ -151,9 +151,9 @@ echopdk validate template.echo
 
 | Package | Description |
 |---------|-------------|
-| `@echo-pdk/core` | Main rendering engine, parser, evaluator |
-| `@echo-pdk/cli` | Command-line interface |
-| `@echo-pdk/language` | Language definition and schema |
+| `@goreal-ai/echo-pdk` | Main rendering engine, parser, evaluator |
+| `@goreal-ai/echo-pdk-cli` | Command-line interface |
+| `@goreal-ai/echo-pdk-language` | Language definition and schema |
 
 ## Documentation
 

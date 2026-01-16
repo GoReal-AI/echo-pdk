@@ -1,5 +1,5 @@
 /**
- * @fileoverview Integration tests for @echo-pdk/core
+ * @fileoverview Integration tests for @goreal-ai/echo-pdk
  *
  * These tests verify the full end-to-end flow from template to rendered output.
  */

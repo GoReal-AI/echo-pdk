@@ -8,7 +8,7 @@
  */
 
 import { readFile, writeFile } from 'fs/promises';
-import { createEcho } from '@echo-pdk/core';
+import { createEcho } from '@goreal-ai/echo-pdk';
 import chalk from 'chalk';
 import ora from 'ora';
 

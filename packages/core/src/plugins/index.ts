@@ -7,7 +7,7 @@
  * IMPLEMENTATION GUIDE:
  *
  * 1. PLUGIN LOADING
- *    - Load from npm packages: @echo-pdk/validators
+ *    - Load from npm packages: @goreal-ai/echo-pdk-validators
  *    - Load from local paths: ./plugins/my-plugin.ts
  *    - Validate plugin structure
  *
@@ -191,7 +191,7 @@ export function definePlugin(plugin: EchoPlugin): EchoPlugin {
 NEXT STEPS TO IMPLEMENT:
 
 1. PATH RESOLUTION
-   - Handle npm packages (@echo-pdk/foo)
+   - Handle npm packages (@goreal-ai/echo-pdk-foo)
    - Handle relative paths (./foo)
    - Handle absolute paths (/path/to/foo)
 

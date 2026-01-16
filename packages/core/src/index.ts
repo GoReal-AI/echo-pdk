@@ -1,12 +1,12 @@
 /**
  * @fileoverview Echo PDK Core - Main entry point
  *
- * This is the main entry point for @echo-pdk/core.
+ * This is the main entry point for @goreal-ai/echo-pdk.
  * It exports the createEcho factory function and all public types.
  *
  * @example
  * ```typescript
- * import { createEcho } from '@echo-pdk/core';
+ * import { createEcho } from '@goreal-ai/echo-pdk';
  *
  * const echo = createEcho({
  *   strict: false,
@@ -111,7 +111,7 @@ const ENV_ECHO_API_KEY = 'ECHO_API_KEY';
  *
  * @example Basic usage
  * ```typescript
- * import { createEcho } from '@echo-pdk/core';
+ * import { createEcho } from '@goreal-ai/echo-pdk';
  *
  * const echo = createEcho();
  * const output = await echo.render('Hello {{name}}!', { name: 'World' });
@@ -490,7 +490,7 @@ function validateNodes(
  *
  * @example
  * ```typescript
- * import { definePlugin } from '@echo-pdk/core';
+ * import { definePlugin } from '@goreal-ai/echo-pdk';
  *
  * export default definePlugin({
  *   name: 'my-operators',

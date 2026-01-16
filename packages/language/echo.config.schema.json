@@ -17,7 +17,7 @@
         "base": {
           "type": "string",
           "description": "Base language definition (npm package or path)",
-          "default": "@echo-pdk/language"
+          "default": "@goreal-ai/echo-pdk-language"
         },
         "strict": {
           "type": "boolean",
@@ -33,7 +33,7 @@
         "type": "string"
       },
       "examples": [
-        ["@echo-pdk/validators", "./plugins/my-plugin.ts"]
+        ["@goreal-ai/echo-pdk-validators", "./plugins/my-plugin.ts"]
       ]
     },
     "ai": {

@@ -1,5 +1,5 @@
 {
-  "name": "@echo-pdk/language",
+  "name": "@goreal-ai/echo-pdk-language",
   "version": "0.1.0",
   "description": "Echo PDK language definition and schema",
   "type": "module",

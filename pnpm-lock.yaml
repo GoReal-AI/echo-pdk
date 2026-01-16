@@ -32,7 +32,7 @@ importers:
 
   packages/cli:
     dependencies:
-      '@echo-pdk/core':
+      '@goreal-ai/echo-pdk':
         specifier: workspace:*
         version: link:../core
       chalk:

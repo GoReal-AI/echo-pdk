@@ -3,7 +3,7 @@
 # =============================================================================
 # This file defines the Echo DSL syntax and semantics.
 # It is designed to be consumed by:
-# - The Echo compiler/renderer (@echo-pdk/core)
+# - The Echo compiler/renderer (@goreal-ai/echo-pdk)
 # - IDE integrations (autocomplete, linting, syntax highlighting)
 # - Documentation generators
 # =============================================================================
@@ -64,7 +64,7 @@ syntax:
     description: "Import another Echo template"
     examples:
       - "[#IMPORT ./sections/header.echo]"
-      - "[#IMPORT @echo-pdk/common/disclaimer]"
+      - "[#IMPORT @goreal-ai/echo-pdk-common/disclaimer]"
 
   # Include directive
   include:
@@ -242,7 +242,7 @@ extensibility:
 
   # Example plugin structure
   pluginExample: |
-    import { definePlugin } from '@echo-pdk/core';
+    import { definePlugin } from '@goreal-ai/echo-pdk';
 
     export default definePlugin({
       name: 'my-plugin',

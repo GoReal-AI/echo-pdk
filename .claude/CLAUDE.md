@@ -18,9 +18,9 @@ This is a **pnpm monorepo** using **Turborepo** for build orchestration.
 
 | Package | Path | Description |
 |---------|------|-------------|
-| `@echo-pdk/core` | `packages/core` | Parser, evaluator, renderer engine |
-| `@echo-pdk/cli` | `packages/cli` | Command-line interface |
-| `@echo-pdk/language` | `packages/language` | Language definition (YAML) and schema |
+| `@goreal-ai/echo-pdk` | `packages/core` | Parser, evaluator, renderer engine |
+| `@goreal-ai/echo-pdk-cli` | `packages/cli` | Command-line interface |
+| `@goreal-ai/echo-pdk-language` | `packages/language` | Language definition (YAML) and schema |
 
 ### Core Architecture
 
