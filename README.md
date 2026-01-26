@@ -155,6 +155,42 @@ echopdk validate template.echo
 | `@goreal-ai/echo-pdk-cli` | Command-line interface |
 | `@goreal-ai/echo-pdk-language` | Language definition and schema |
 
+## Echostash Ecosystem
+
+Echo PDK is part of the **Echostash ecosystem** - a complete toolkit for prompt engineering:
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         ECHOSTASH ECOSYSTEM                              │
+│                                                                          │
+│  ┌─────────────┐     ┌─────────────┐     ┌─────────────┐               │
+│  │   EchoIDE   │     │  Echostash  │     │  Your App   │               │
+│  │  (Develop)  │────▶│   (Manage)  │◀────│  (Consume)  │               │
+│  └──────┬──────┘     └──────┬──────┘     └──────┬──────┘               │
+│         │                   │                   │                       │
+│         └───────────────────┴───────────────────┘                       │
+│                             │                                           │
+│                    ┌────────▼────────┐                                  │
+│                    │    Echo DSL     │  ◀── You are here                │
+│                    └────────┬────────┘                                  │
+│                             │                                           │
+│                    ┌────────▼────────┐                                  │
+│                    │   PLP Protocol  │  Open standard for prompts       │
+│                    └────────┬────────┘                                  │
+│                             │                                           │
+│                    ┌────────▼────────┐                                  │
+│                    │  PLP Registry   │  Directory of PLP servers        │
+│                    └─────────────────┘                                  │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+| Component | Description | Link |
+|-----------|-------------|------|
+| **EchoIDE** | Web IDE for Echo DSL with real-time validation | [ide.echostash.app](https://ide.echostash.app) |
+| **Echostash** | Prompt management platform | [echostash.app](https://echostash.app) |
+| **PLP** | Open protocol for prompt interchange | [GitHub](https://github.com/gorealai/plp) |
+| **PLP Registry** | Directory of PLP-compliant servers | [plp.pub](https://plp.pub) |
+
 ## Documentation
 
 - **[Complete Usage Guide](./docs/USAGE.md)** - Full tutorial with examples
