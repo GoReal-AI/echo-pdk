@@ -164,7 +164,7 @@ Echo PDK is part of the **Echostash ecosystem** - a complete toolkit for prompt 
 │                         ECHOSTASH ECOSYSTEM                              │
 │                                                                          │
 │  ┌─────────────┐     ┌─────────────┐     ┌─────────────┐               │
-│  │   EchoIDE   │     │  Echostash  │     │  Your App   │               │
+│  │ Playground  │     │  Echostash  │     │  Your App   │               │
 │  │  (Develop)  │────▶│   (Manage)  │◀────│  (Consume)  │               │
 │  └──────┬──────┘     └──────┬──────┘     └──────┬──────┘               │
 │         │                   │                   │                       │
@@ -186,7 +186,6 @@ Echo PDK is part of the **Echostash ecosystem** - a complete toolkit for prompt 
 
 | Component | Description | Link |
 |-----------|-------------|------|
-| **EchoIDE** | Web IDE for Echo DSL with real-time validation | [ide.echostash.app](https://ide.echostash.app) |
 | **Echostash** | Prompt management platform | [echostash.app](https://echostash.app) |
 | **PLP** | Open protocol for prompt interchange | [GitHub](https://github.com/GoReal-AI/plp) |
 | **PLP Registry** | Directory of PLP-compliant servers | [plp-registry.echostash.app](https://plp-registry.echostash.app/) |
