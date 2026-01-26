@@ -1,6 +1,6 @@
 {
   "name": "@goreal-ai/echo-pdk",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Echo PDK core rendering engine - parser, evaluator, and renderer",
   "type": "module",
   "main": "./dist/index.js",
@@ -9,6 +9,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./project": {
+      "types": "./dist/project/index.d.ts",
+      "import": "./dist/project/index.js"
     }
   },
   "files": [
