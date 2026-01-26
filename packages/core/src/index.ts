@@ -508,3 +508,40 @@ function validateNodes(
 export function definePlugin(plugin: EchoPlugin): EchoPlugin {
   return plugin;
 }
+
+// =============================================================================
+// PROJECT MODULE
+// =============================================================================
+
+// Re-export project types
+export type {
+  EchoProject,
+  PromptFile,
+  MetaFile,
+  ModelConfig,
+  ContextFolder,
+  TestingFolder,
+  ProjectValidationResult,
+  ProjectValidationError,
+  ProjectValidationWarning,
+  CreateProjectOptions,
+} from './project/index.js';
+
+// Re-export project functions
+export {
+  createProject,
+  createProjectFromFiles,
+  validateProject,
+  updateProjectPrompt,
+  updateProjectMeta,
+  getProjectFiles,
+  extractVariablesFromPrompt,
+  parseMeta,
+  parseMetaWithErrors,
+  serializeMeta,
+  mergeMeta,
+  createDefaultMetaYaml,
+  DEFAULT_META,
+  DEFAULT_PROMPT_CONTENT,
+  PROJECT_FILE_NAMES,
+} from './project/index.js';
