@@ -9,8 +9,19 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "files": [
-    "dist"
+    "dist",
+    "README.md"
   ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/GoReal-AI/echo-pdk.git",
+    "directory": "packages/cli"
+  },
+  "bugs": {
+    "url": "https://github.com/GoReal-AI/echo-pdk/issues"
+  },
+  "homepage": "https://github.com/GoReal-AI/echo-pdk#readme",
+  "author": "GoReal.AI",
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
