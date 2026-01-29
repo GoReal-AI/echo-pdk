@@ -211,23 +211,38 @@ export interface AIProviderConfig {
  * PLP (Prompt Library Protocol) configuration for automatic context resolution.
  *
  * When configured, #context() directives will automatically fetch from the PLP server.
+ * You can provide either a pre-configured PLPClient instance (preferred) or
+ * server URL and auth token to create one internally.
  *
  * @example
  * ```typescript
+ * // Option 1: Pass a PLPClient instance (preferred)
+ * import { PLPClient } from '@goreal-ai/plp-client';
+ * const plpClient = new PLPClient('https://api.echostash.com', { apiKey: token });
+ * const echo = createEcho({
+ *   plp: {
+ *     client: plpClient,
+ *     promptId: 123, // Optional: for prompt-specific context mappings
+ *   }
+ * });
+ *
+ * // Option 2: Pass serverUrl and auth (client created internally)
  * const echo = createEcho({
  *   plp: {
  *     serverUrl: 'https://api.echostash.com',
  *     auth: userToken,
- *     promptId: 123, // Optional: for prompt-specific context mappings
+ *     promptId: 123,
  *   }
  * });
  * ```
  */
 export interface PlpConfig {
-  /** The PLP server URL (e.g., 'https://api.echostash.com') */
-  serverUrl: string;
-  /** Authentication token or API key */
-  auth: string;
+  /** Pre-configured PLPClient instance (preferred) */
+  client?: import('@goreal-ai/plp-client').PLPClient;
+  /** The PLP server URL (e.g., 'https://api.echostash.com') - required if client not provided */
+  serverUrl?: string;
+  /** Authentication token or API key - required if client not provided */
+  auth?: string;
   /** Optional: prompt ID for resolving context mappings */
   promptId?: number | string;
 }

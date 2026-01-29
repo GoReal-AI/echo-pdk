@@ -6,10 +6,22 @@
  *
  * @example
  * ```typescript
+ * import { PLPClient } from '@goreal-ai/plp-client';
+ *
+ * // Option 1: Pass a PLPClient instance (preferred)
+ * const plpClient = new PLPClient('https://api.echostash.com', { apiKey: token });
+ * const echo = createEcho({
+ *   plp: {
+ *     client: plpClient,
+ *     promptId: 123,
+ *   }
+ * });
+ *
+ * // Option 2: Pass serverUrl and auth (legacy)
  * const echo = createEcho({
  *   plp: {
  *     serverUrl: 'https://api.echostash.com',
- *     auth: userToken, // or API key
+ *     auth: userToken,
  *   }
  * });
  *
@@ -22,6 +34,20 @@ import type { ContextResolver, ContextResolveResult, ContextBatchResult } from '
 import type { ResolvedContextContent } from '../types.js';
 import { isPlpReference, extractAssetId, validateContextPath } from './resolver.js';
 
+// Dynamic import PLPClient to keep it optional
+let PLPClientClass: typeof import('@goreal-ai/plp-client').PLPClient | null = null;
+
+async function getPLPClient(): Promise<typeof import('@goreal-ai/plp-client').PLPClient | null> {
+  if (PLPClientClass) return PLPClientClass;
+  try {
+    const module = await import('@goreal-ai/plp-client');
+    PLPClientClass = module.PLPClient;
+    return PLPClientClass;
+  } catch {
+    return null;
+  }
+}
+
 // =============================================================================
 // TYPES
 // =============================================================================
@@ -30,30 +56,14 @@ import { isPlpReference, extractAssetId, validateContextPath } from './resolver.
  * PLP resolver configuration.
  */
 export interface PlpResolverConfig {
-  /** The PLP server URL (e.g., 'https://api.echostash.com') */
-  serverUrl: string;
-  /** Authentication token or API key */
-  auth: string;
+  /** Pre-configured PLPClient instance (preferred) */
+  client?: import('@goreal-ai/plp-client').PLPClient;
+  /** The PLP server URL (e.g., 'https://api.echostash.com') - required if client not provided */
+  serverUrl?: string;
+  /** Authentication token or API key - required if client not provided */
+  auth?: string;
   /** Optional: prompt ID for resolving context mappings */
   promptId?: number | string;
-}
-
-/**
- * Response from PLP context-store endpoint.
- */
-interface PlpAssetResponse {
-  assetId: string;
-  mimeType: string;
-  dataUrl: string;
-}
-
-/**
- * Response from PLP prompt context resolve endpoint.
- */
-interface PlpResolvedContext {
-  mimeType: string;
-  dataUrl?: string;
-  text?: string;
 }
 
 // =============================================================================
@@ -63,15 +73,50 @@ interface PlpResolvedContext {
 /**
  * Built-in PLP context resolver.
  *
- * Fetches context from a PLP-compliant server using the standard endpoints:
- * - GET /api/v1/context-store/{assetId} - for plp:// references
- * - POST /api/v1/prompts/{promptId}/context/_resolve - for prompt context mappings
+ * Fetches context from a PLP-compliant server using the PLPClient SDK:
+ * - client.getContextStoreAsset(assetId) - for plp:// references
+ * - client.resolvePromptContext(promptId, contextNames) - for prompt context mappings
  */
 export class PlpContextResolver implements ContextResolver {
+  private client: import('@goreal-ai/plp-client').PLPClient | null = null;
   private config: PlpResolverConfig;
+  private initPromise: Promise<void> | null = null;
 
   constructor(config: PlpResolverConfig) {
     this.config = config;
+    if (config.client) {
+      this.client = config.client;
+    }
+  }
+
+  /**
+   * Initialize the PLPClient if not already provided.
+   * Uses dynamic import to keep @goreal-ai/plp-client optional.
+   */
+  private async ensureClient(): Promise<void> {
+    if (this.client) return;
+
+    if (this.initPromise) {
+      await this.initPromise;
+      return;
+    }
+
+    this.initPromise = (async () => {
+      if (!this.config.serverUrl || !this.config.auth) {
+        throw new Error('PLPClient or serverUrl+auth required for PLP context resolution');
+      }
+
+      const PLPClient = await getPLPClient();
+      if (!PLPClient) {
+        throw new Error(
+          'PLPClient not available. Install @goreal-ai/plp-client or pass a client instance.'
+        );
+      }
+
+      this.client = new PLPClient(this.config.serverUrl, { apiKey: this.config.auth });
+    })();
+
+    await this.initPromise;
   }
 
   /**
@@ -85,6 +130,8 @@ export class PlpContextResolver implements ContextResolver {
     }
 
     try {
+      await this.ensureClient();
+
       if (isPlpReference(path)) {
         // Direct Context Store reference: plp://asset-id
         return await this.resolveFromContextStore(extractAssetId(path));
@@ -111,6 +158,16 @@ export class PlpContextResolver implements ContextResolver {
    */
   async resolveBatch(paths: string[]): Promise<ContextBatchResult> {
     const results = new Map<string, ContextResolveResult>();
+
+    try {
+      await this.ensureClient();
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      for (const path of paths) {
+        results.set(path, { success: false, error: errorMsg });
+      }
+      return results;
+    }
 
     // Separate plp:// references from prompt context names
     const plpRefs: string[] = [];
@@ -149,38 +206,33 @@ export class PlpContextResolver implements ContextResolver {
   }
 
   /**
-   * Fetch from Context Store: GET /api/v1/context-store/{assetId}
+   * Fetch from Context Store using PLPClient SDK.
    */
   private async resolveFromContextStore(assetId: string): Promise<ContextResolveResult> {
-    const url = `${this.config.serverUrl}/api/v1/context-store/${encodeURIComponent(assetId)}`;
-
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${this.config.auth}`,
-        'Accept': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      if (response.status === 404) {
-        return { success: false, error: `Asset not found: ${assetId}` };
-      }
-      if (response.status === 401 || response.status === 403) {
-        return { success: false, error: `Unauthorized to access asset: ${assetId}` };
-      }
-      return { success: false, error: `Failed to fetch asset: ${response.statusText}` };
+    if (!this.client) {
+      return { success: false, error: 'PLPClient not initialized' };
     }
 
-    const data = await response.json() as PlpAssetResponse;
+    try {
+      const data = await this.client.getContextStoreAsset(assetId);
 
-    return {
-      success: true,
-      content: {
-        mimeType: data.mimeType,
-        dataUrl: data.dataUrl,
-      },
-    };
+      return {
+        success: true,
+        content: {
+          mimeType: data.mimeType,
+          dataUrl: data.dataUrl,
+        },
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes('404') || message.toLowerCase().includes('not found')) {
+        return { success: false, error: `Asset not found: ${assetId}` };
+      }
+      if (message.includes('401') || message.includes('403') || message.toLowerCase().includes('unauthorized')) {
+        return { success: false, error: `Unauthorized to access asset: ${assetId}` };
+      }
+      return { success: false, error: `Failed to fetch asset: ${message}` };
+    }
   }
 
   /**
@@ -192,32 +244,24 @@ export class PlpContextResolver implements ContextResolver {
   }
 
   /**
-   * Batch resolve prompt context: POST /api/v1/prompts/{promptId}/context/_resolve
+   * Batch resolve prompt context using PLPClient SDK.
    */
   private async resolvePromptContextBatch(contextNames: string[]): Promise<ContextBatchResult> {
     const results = new Map<string, ContextResolveResult>();
-    const url = `${this.config.serverUrl}/api/v1/prompts/${this.config.promptId}/context/_resolve`;
+
+    if (!this.client) {
+      const errorMsg = 'PLPClient not initialized';
+      for (const name of contextNames) {
+        results.set(name, { success: false, error: errorMsg });
+      }
+      return results;
+    }
 
     try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${this.config.auth}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify({ contextNames }),
-      });
-
-      if (!response.ok) {
-        const errorMsg = `Failed to resolve context: ${response.statusText}`;
-        for (const name of contextNames) {
-          results.set(name, { success: false, error: errorMsg });
-        }
-        return results;
-      }
-
-      const data = await response.json() as Record<string, PlpResolvedContext>;
+      const data = await this.client.resolvePromptContext(
+        String(this.config.promptId),
+        contextNames
+      );
 
       for (const name of contextNames) {
         const resolved = data[name];
@@ -228,9 +272,8 @@ export class PlpContextResolver implements ContextResolver {
           if (resolved.dataUrl) {
             content.dataUrl = resolved.dataUrl;
           }
-          if (resolved.text) {
-            content.text = resolved.text;
-          }
+          // Note: ResolvedContext from SDK uses dataUrl, not text
+          // For text content, dataUrl will be a data:text/... URL
           results.set(name, { success: true, content });
         } else {
           results.set(name, { success: false, error: `Context not found: ${name}` });
@@ -250,9 +293,28 @@ export class PlpContextResolver implements ContextResolver {
 /**
  * Create a PLP context resolver.
  *
- * @param config - PLP resolver configuration
+ * @param config - PLP resolver configuration (PLPClient instance or serverUrl+auth)
  * @returns A configured PLP context resolver
+ *
+ * @example
+ * ```typescript
+ * // Option 1: Pass a PLPClient instance (preferred)
+ * import { PLPClient } from '@goreal-ai/plp-client';
+ * const plpClient = new PLPClient('https://api.echostash.com', { apiKey: token });
+ * const resolver = createPlpResolver({ client: plpClient, promptId: 123 });
+ *
+ * // Option 2: Pass serverUrl and auth (client created internally)
+ * const resolver = createPlpResolver({
+ *   serverUrl: 'https://api.echostash.com',
+ *   auth: 'your-token',
+ *   promptId: 123,
+ * });
+ * ```
  */
 export function createPlpResolver(config: PlpResolverConfig): PlpContextResolver {
+  // Validate that either client or serverUrl+auth is provided
+  if (!config.client && (!config.serverUrl || !config.auth)) {
+    throw new Error('PLPClient or serverUrl+auth required for PLP context resolution');
+  }
   return new PlpContextResolver(config);
 }
