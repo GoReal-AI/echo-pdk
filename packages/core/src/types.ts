@@ -208,6 +208,31 @@ export interface AIProviderConfig {
 }
 
 /**
+ * PLP (Prompt Library Protocol) configuration for automatic context resolution.
+ *
+ * When configured, #context() directives will automatically fetch from the PLP server.
+ *
+ * @example
+ * ```typescript
+ * const echo = createEcho({
+ *   plp: {
+ *     serverUrl: 'https://api.echostash.com',
+ *     auth: userToken,
+ *     promptId: 123, // Optional: for prompt-specific context mappings
+ *   }
+ * });
+ * ```
+ */
+export interface PlpConfig {
+  /** The PLP server URL (e.g., 'https://api.echostash.com') */
+  serverUrl: string;
+  /** Authentication token or API key */
+  auth: string;
+  /** Optional: prompt ID for resolving context mappings */
+  promptId?: number | string;
+}
+
+/**
  * Main Echo configuration object.
  */
 export interface EchoConfig {
@@ -215,13 +240,52 @@ export interface EchoConfig {
   strict?: boolean;
   /** AI provider configuration for #ai_judge */
   aiProvider?: AIProviderConfig;
+  /** PLP configuration for automatic context resolution */
+  plp?: PlpConfig;
   /** Plugin paths to load */
   plugins?: string[];
   /** Language definition file path */
   languagePath?: string;
-  /** Context resolver for #context() directives */
+  /** Context resolver for #context() directives (overrides plp config if both provided) */
   contextResolver?: import('./context/resolver.js').ContextResolver;
 }
+
+// =============================================================================
+// MULTIMODAL CONTENT BLOCKS (OpenAI-compatible)
+// =============================================================================
+
+/**
+ * Text content block.
+ */
+export interface TextContentBlock {
+  type: 'text';
+  text: string;
+}
+
+/**
+ * Image URL content block (OpenAI-compatible format).
+ */
+export interface ImageUrlContentBlock {
+  type: 'image_url';
+  image_url: {
+    /** The image URL - can be a data URL (base64) or http(s) URL */
+    url: string;
+    /** Optional detail level for vision models */
+    detail?: 'auto' | 'low' | 'high';
+  };
+}
+
+/**
+ * Union of all content block types.
+ * Compatible with OpenAI's multimodal message format.
+ */
+export type ContentBlock = TextContentBlock | ImageUrlContentBlock;
+
+/**
+ * Multimodal render result.
+ * An array of content blocks that can be passed directly to LLM APIs.
+ */
+export type MultimodalContent = ContentBlock[];
 
 // =============================================================================
 // RESULTS & ERRORS
@@ -320,6 +384,28 @@ export interface Echo {
    * @returns The rendered string
    */
   render(template: string, context: Record<string, unknown>): Promise<string>;
+
+  /**
+   * Render a template with the given context to multimodal content blocks.
+   *
+   * Returns an array of ContentBlock objects compatible with OpenAI's
+   * multimodal message format. Images from #context() become image_url blocks.
+   *
+   * @param template - The Echo template string
+   * @param context - Variables to substitute
+   * @returns Array of content blocks (text and image_url)
+   *
+   * @example
+   * ```typescript
+   * const blocks = await echo.renderMultimodal(template, { name: 'Alice' });
+   * // Result:
+   * // [
+   * //   { type: 'text', text: 'Hello Alice, analyze this:' },
+   * //   { type: 'image_url', image_url: { url: 'data:image/png;base64,...' } }
+   * // ]
+   * ```
+   */
+  renderMultimodal(template: string, context: Record<string, unknown>): Promise<MultimodalContent>;
 
   /**
    * Validate a template for syntax and semantic errors.

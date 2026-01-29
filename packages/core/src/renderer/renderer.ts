@@ -23,6 +23,8 @@ import type {
   ContextNode,
   EchoConfig,
   OperatorDefinition,
+  ContentBlock,
+  MultimodalContent,
 } from '../types.js';
 import { parse } from '../parser/parser.js';
 import { evaluate, resolveVariable } from '../evaluator/evaluator.js';
@@ -176,6 +178,160 @@ function renderContext(node: ContextNode, options: RenderOptions): string {
 
   // Lenient mode: return placeholder
   return `[CONTEXT: ${node.path}]`;
+}
+
+// =============================================================================
+// MULTIMODAL RENDERING
+// =============================================================================
+
+/**
+ * Render an evaluated AST to multimodal content blocks.
+ *
+ * This produces an array of ContentBlock objects compatible with
+ * OpenAI's multimodal message format. Text is grouped together,
+ * and images are separate image_url blocks.
+ *
+ * @param ast - The evaluated AST nodes
+ * @param options - Render options
+ * @returns Array of content blocks
+ *
+ * @example
+ * ```typescript
+ * const blocks = renderMultimodal(evaluatedAst, { context: {} });
+ * // Result:
+ * // [
+ * //   { type: 'text', text: 'Analyze this image:' },
+ * //   { type: 'image_url', image_url: { url: 'data:image/png;base64,...' } },
+ * //   { type: 'text', text: 'What do you see?' }
+ * // ]
+ * ```
+ */
+export function renderMultimodal(ast: ASTNode[], options: RenderOptions): MultimodalContent {
+  const blocks: ContentBlock[] = [];
+  let currentText = '';
+
+  /**
+   * Flush accumulated text to a text block.
+   */
+  function flushText(): void {
+    if (currentText.length > 0) {
+      let text = currentText;
+
+      // Apply post-processing
+      if (options.collapseNewlines) {
+        text = collapseNewlines(text);
+      }
+
+      blocks.push({ type: 'text', text });
+      currentText = '';
+    }
+  }
+
+  /**
+   * Process a single node.
+   */
+  function processNode(node: ASTNode): void {
+    switch (node.type) {
+      case 'text':
+        currentText += node.value;
+        break;
+
+      case 'variable':
+        currentText += renderVariable(node, options);
+        break;
+
+      case 'conditional':
+        // By the time we render, conditionals should have been evaluated
+        for (const child of node.consequent) {
+          processNode(child);
+        }
+        break;
+
+      case 'section':
+        // Section definitions are not rendered inline
+        break;
+
+      case 'import':
+      case 'include':
+        // Should be resolved before rendering
+        if (options.config?.strict) {
+          throw new Error(`Unresolved ${node.type}: ${node.type === 'import' ? node.path : node.name}`);
+        }
+        break;
+
+      case 'context':
+        // Context nodes become either text (inline) or image blocks
+        if (node.resolvedContent) {
+          if (node.resolvedContent.dataUrl && isImageMimeType(node.resolvedContent.mimeType)) {
+            // Image content: flush text and add image block
+            flushText();
+            blocks.push({
+              type: 'image_url',
+              image_url: {
+                url: node.resolvedContent.dataUrl,
+              },
+            });
+          } else if (node.resolvedContent.text) {
+            // Text content: append to current text
+            currentText += node.resolvedContent.text;
+          } else if (node.resolvedContent.dataUrl) {
+            // Non-image data URL (rare): append as text
+            currentText += node.resolvedContent.dataUrl;
+          }
+        } else {
+          // Unresolved context
+          if (options.config?.strict) {
+            throw new Error(`Unresolved context: ${node.path}`);
+          }
+          currentText += `[CONTEXT: ${node.path}]`;
+        }
+        break;
+
+      default: {
+        // Exhaustiveness check
+        const _exhaustive: never = node;
+        throw new Error(`Unknown node type: ${(_exhaustive as ASTNode).type}`);
+      }
+    }
+  }
+
+  // Process all nodes
+  for (const node of ast) {
+    processNode(node);
+  }
+
+  // Flush any remaining text
+  flushText();
+
+  // Apply trim to first and last text blocks if requested
+  if (options.trim && blocks.length > 0) {
+    const first = blocks[0];
+    if (first && first.type === 'text') {
+      first.text = first.text.trimStart();
+      if (first.text.length === 0) {
+        blocks.shift();
+      }
+    }
+
+    if (blocks.length > 0) {
+      const last = blocks[blocks.length - 1];
+      if (last && last.type === 'text') {
+        last.text = last.text.trimEnd();
+        if (last.text.length === 0) {
+          blocks.pop();
+        }
+      }
+    }
+  }
+
+  return blocks;
+}
+
+/**
+ * Check if a MIME type is an image type.
+ */
+function isImageMimeType(mimeType: string): boolean {
+  return mimeType.startsWith('image/');
 }
 
 /**

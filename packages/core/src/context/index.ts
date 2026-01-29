@@ -22,3 +22,10 @@ export {
   // Mock Resolver
   MockContextResolver,
 } from './resolver.js';
+
+// PLP Resolver - Built-in resolver using PLP protocol
+export {
+  type PlpResolverConfig,
+  PlpContextResolver,
+  createPlpResolver,
+} from './plp-resolver.js';

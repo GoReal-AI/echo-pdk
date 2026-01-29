@@ -38,6 +38,12 @@ export type {
   // Configuration
   EchoConfig,
   AIProviderConfig,
+  PlpConfig,
+  // Multimodal content
+  ContentBlock,
+  TextContentBlock,
+  ImageUrlContentBlock,
+  MultimodalContent,
   // Results
   ParseResult,
   ValidationResult,
@@ -65,16 +71,19 @@ import type {
 // Import submodules
 import { parse } from './parser/parser.js';
 import { evaluate } from './evaluator/evaluator.js';
-import { render, formatErrors } from './renderer/renderer.js';
+import { render, renderMultimodal, formatErrors } from './renderer/renderer.js';
 import { builtinOperators, getOperator } from './evaluator/operators.js';
 import { createOpenAIProvider, withCache } from './ai-judge/index.js';
 import {
   validateContextPath,
   collectContextPaths,
   applyResolvedContext,
+  createPlpResolver,
   type ContextResolver,
   type ContextBatchResult,
 } from './context/index.js';
+
+import type { MultimodalContent } from './types.js';
 
 // Re-export utilities for advanced usage
 export { parse } from './parser/parser.js';
@@ -83,7 +92,7 @@ export {
   resolveVariable,
   type ResolveVariableOptions,
 } from './evaluator/evaluator.js';
-export { render, renderTemplate, formatErrors } from './renderer/renderer.js';
+export { render, renderMultimodal, renderTemplate, formatErrors } from './renderer/renderer.js';
 export { builtinOperators, getOperator } from './evaluator/operators.js';
 export {
   createTextNode,
@@ -107,6 +116,7 @@ export {
   type ContextResolver,
   type ContextResolveResult,
   type ContextBatchResult,
+  type PlpResolverConfig,
   // Validation
   isPlpReference,
   extractAssetId,
@@ -116,6 +126,9 @@ export {
   applyResolvedContext,
   // Mock Resolver
   MockContextResolver,
+  // PLP Resolver
+  PlpContextResolver,
+  createPlpResolver,
 } from './context/index.js';
 
 /**
@@ -235,6 +248,15 @@ export function createEcho(config: EchoConfig = {}): Echo {
   // Set up AI Judge operator if provider is configured
   setupAiJudgeOperator(config, operators);
 
+  // Set up PLP resolver if plp config is provided and no custom resolver
+  if (config.plp && !config.contextResolver) {
+    config.contextResolver = createPlpResolver({
+      serverUrl: config.plp.serverUrl,
+      auth: config.plp.auth,
+      promptId: config.plp.promptId,
+    });
+  }
+
   // Loaded plugins
   const plugins: EchoPlugin[] = [];
 
@@ -277,6 +299,43 @@ export function createEcho(config: EchoConfig = {}): Echo {
 
       // Step 4: Render
       return render(evaluatedAst, {
+        context,
+        config,
+        trim: false,
+        collapseNewlines: true,
+      });
+    },
+
+    /**
+     * Render a template to multimodal content blocks.
+     */
+    async renderMultimodal(
+      template: string,
+      context: Record<string, unknown>
+    ): Promise<MultimodalContent> {
+      // Step 1: Parse
+      const parseResult = parse(template);
+
+      if (!parseResult.success || !parseResult.ast) {
+        const formattedErrors = formatErrors(template, parseResult.errors);
+        throw new Error(`Parse error:\n${formattedErrors}`);
+      }
+
+      // Step 2: Evaluate
+      const { ast: evaluatedAst } = await evaluate(
+        parseResult.ast,
+        context,
+        config,
+        operators
+      );
+
+      // Step 3: Resolve context references (if resolver provided)
+      if (config.contextResolver) {
+        await resolveContextNodes(evaluatedAst, config.contextResolver);
+      }
+
+      // Step 4: Render to multimodal blocks
+      return renderMultimodal(evaluatedAst, {
         context,
         config,
         trim: false,
