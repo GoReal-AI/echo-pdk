@@ -3,9 +3,17 @@
  *
  * This package provides:
  * - The echo.lang.yaml language definition
+ * - The echo.tmLanguage.json TextMate grammar (for Monaco, VSCode, Zed)
  * - JSON Schema for echo.config.yaml validation
- * - TypeScript types for language structures
- * - Utilities for loading and parsing language definitions
+ * - TypeScript types and utilities for editor integration
+ *
+ * USAGE:
+ *
+ * For syntax highlighting (Monaco, VSCode, Zed):
+ *   import tmGrammar from '@goreal-ai/echo-pdk-language/echo.tmLanguage.json';
+ *
+ * For autocomplete:
+ *   import { getAllAutocompleteItems, OPERATORS, DIRECTIVES } from '@goreal-ai/echo-pdk-language';
  */
 
 import { readFileSync } from 'fs';
@@ -13,13 +21,27 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { parse as parseYaml } from 'yaml';
 
+// Re-export generated grammar data
+export {
+  KEYWORDS,
+  DIRECTIVES,
+  OPERATORS,
+  SNIPPETS,
+  getAllAutocompleteItems,
+  type Keyword,
+  type DirectiveDefinition,
+  type OperatorDefinition,
+  type SnippetDefinition,
+  type AutocompleteItem,
+} from './generated/grammar-data.js';
+
 // Get the package directory
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const packageDir = join(__dirname, '..');
 
 // =============================================================================
-// TYPES
+// LEGACY TYPES (for backwards compatibility)
 // =============================================================================
 
 /**
@@ -169,6 +191,7 @@ export function getOperator(
 
 /**
  * Autocomplete trigger definition for IDE integration.
+ * @deprecated Use getAllAutocompleteItems() instead
  */
 export interface AutocompleteTrigger {
   trigger: string;
@@ -180,6 +203,7 @@ export interface AutocompleteTrigger {
 /**
  * Get all autocomplete triggers for IDE integration.
  * Includes both operators and directives (like #context).
+ * @deprecated Use getAllAutocompleteItems() instead
  */
 export function getAutocompleteTriggers(
   lang: LanguageDefinition
@@ -215,6 +239,7 @@ export function getAutocompleteTriggers(
 
 /**
  * Get directive autocomplete triggers only.
+ * @deprecated Use DIRECTIVES from generated data instead
  */
 export function getDirectiveAutocompleteTriggers(
   lang: LanguageDefinition
@@ -224,6 +249,7 @@ export function getDirectiveAutocompleteTriggers(
 
 /**
  * Get operator autocomplete triggers only.
+ * @deprecated Use OPERATORS from generated data instead
  */
 export function getOperatorAutocompleteTriggers(
   lang: LanguageDefinition
@@ -247,3 +273,4 @@ export function getValidationRules(
 // Export path to language files for direct access
 export const LANGUAGE_FILE_PATH = join(packageDir, 'echo.lang.yaml');
 export const CONFIG_SCHEMA_PATH = join(packageDir, 'echo.config.schema.json');
+export const TM_GRAMMAR_PATH = join(packageDir, 'echo.tmLanguage.json');
