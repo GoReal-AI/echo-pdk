@@ -1,6 +1,6 @@
 {
   "name": "@goreal-ai/echo-pdk-language",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Echo PDK language definition and schema",
   "type": "module",
   "main": "./dist/index.js",
@@ -9,6 +9,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./browser": {
+      "types": "./dist/browser.d.ts",
+      "import": "./dist/browser.js"
     },
     "./echo.lang.yaml": "./echo.lang.yaml",
     "./echo.config.schema.json": "./echo.config.schema.json",
