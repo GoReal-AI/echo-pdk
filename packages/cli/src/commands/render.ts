@@ -5,10 +5,16 @@
  *   echopdk render template.echo --context '{"name": "Alice"}'
  *   echopdk render template.echo --context-file context.json
  *   echopdk render template.echo --context-file context.json --output result.txt
+ *   echopdk render template.echo --context-dir ./assets  # For #context() resolution
  */
 
-import { readFile, writeFile } from 'fs/promises';
-import { createEcho } from '@goreal-ai/echo-pdk';
+import { readFile, writeFile, stat } from 'fs/promises';
+import { join, extname } from 'path';
+import {
+  createEcho,
+  type ContextResolver,
+  type ResolvedContextContent,
+} from '@goreal-ai/echo-pdk';
 import chalk from 'chalk';
 import ora from 'ora';
 
@@ -19,6 +25,7 @@ import ora from 'ora';
 interface RenderOptions {
   context?: string;
   contextFile?: string;
+  contextDir?: string;
   output?: string;
   strict?: boolean;
   trim?: boolean;
@@ -44,16 +51,22 @@ export async function renderCommand(
     // 2. Load context
     const context = await loadContext(options);
 
-    // 3. Create Echo instance
+    // 3. Create context resolver if --context-dir provided
+    const contextResolver = options.contextDir
+      ? createFileContextResolver(options.contextDir)
+      : undefined;
+
+    // 4. Create Echo instance
     const echo = createEcho({
       strict: options.strict,
+      contextResolver,
     });
 
-    // 4. Render
+    // 5. Render
     spinner.text = 'Rendering...';
     const result = await echo.render(template, context);
 
-    // 5. Apply post-processing
+    // 6. Apply post-processing
     let output = result;
     if (options.trim) {
       output = output.trim();
@@ -61,7 +74,7 @@ export async function renderCommand(
 
     spinner.succeed('Template rendered successfully');
 
-    // 6. Output result
+    // 7. Output result
     if (options.output) {
       await writeFile(options.output, output, 'utf-8');
       console.log(chalk.green(`Output written to: ${options.output}`));
@@ -118,6 +131,92 @@ async function loadContext(options: RenderOptions): Promise<Record<string, unkno
 
   // No context provided
   return {};
+}
+
+/**
+ * MIME type mapping for common file extensions.
+ */
+const MIME_TYPES: Record<string, string> = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.txt': 'text/plain',
+  '.md': 'text/markdown',
+  '.json': 'application/json',
+  '.yaml': 'application/yaml',
+  '.yml': 'application/yaml',
+  '.xml': 'application/xml',
+};
+
+/**
+ * Check if MIME type is an image type.
+ */
+function isImageMimeType(mimeType: string): boolean {
+  return mimeType.startsWith('image/');
+}
+
+/**
+ * Create a context resolver that reads files from a directory.
+ *
+ * @param contextDir - Directory containing context files
+ * @returns ContextResolver instance
+ */
+function createFileContextResolver(contextDir: string): ContextResolver {
+  return {
+    async resolve(path: string) {
+      // Check if it's a plp:// reference
+      const isPlpRef = path.startsWith('plp://');
+
+      // Skip plp:// references - those need to be resolved via API
+      if (isPlpRef) {
+        console.warn(
+          chalk.yellow(`Warning: plp:// references (${path}) require API access. Skipping.`)
+        );
+        return { success: false, error: 'plp:// references require API access' };
+      }
+
+      // Resolve file path
+      const filePath = join(contextDir, path);
+
+      try {
+        // Check file exists
+        await stat(filePath);
+
+        // Determine MIME type
+        const ext = extname(filePath).toLowerCase();
+        const mimeType = MIME_TYPES[ext] || 'application/octet-stream';
+
+        // Read file content
+        const fileContent = await readFile(filePath);
+
+        let content: ResolvedContextContent;
+
+        if (isImageMimeType(mimeType)) {
+          // Return as base64 data URL for images
+          const base64 = fileContent.toString('base64');
+          content = {
+            mimeType,
+            dataUrl: `data:${mimeType};base64,${base64}`,
+          };
+        } else {
+          // Return as text for text files
+          content = {
+            mimeType,
+            text: fileContent.toString('utf-8'),
+          };
+        }
+
+        return { success: true, content };
+      } catch {
+        console.warn(
+          chalk.yellow(`Warning: Context file not found: ${filePath}`)
+        );
+        return { success: false, error: `Context file not found: ${filePath}` };
+      }
+    },
+  };
 }
 
 // =============================================================================

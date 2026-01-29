@@ -68,7 +68,13 @@ import { evaluate } from './evaluator/evaluator.js';
 import { render, formatErrors } from './renderer/renderer.js';
 import { builtinOperators, getOperator } from './evaluator/operators.js';
 import { createOpenAIProvider, withCache } from './ai-judge/index.js';
-import { validateContextPath } from './context/index.js';
+import {
+  validateContextPath,
+  collectContextPaths,
+  applyResolvedContext,
+  type ContextResolver,
+  type ContextBatchResult,
+} from './context/index.js';
 
 // Re-export utilities for advanced usage
 export { parse } from './parser/parser.js';
@@ -117,6 +123,44 @@ export {
  */
 const ENV_API_KEY = 'OPENAI_API_KEY';
 const ENV_ECHO_API_KEY = 'ECHO_API_KEY';
+
+/**
+ * Resolve context references in the AST using the provided resolver.
+ *
+ * This function:
+ * 1. Collects all context paths from the AST
+ * 2. Resolves them in batch (if supported) or one by one
+ * 3. Applies the resolved content back to the context nodes
+ *
+ * @param ast - The evaluated AST
+ * @param resolver - The context resolver
+ */
+async function resolveContextNodes(
+  ast: import('./types.js').ASTNode[],
+  resolver: ContextResolver
+): Promise<void> {
+  // Collect all context paths
+  const paths = collectContextPaths(ast);
+
+  if (paths.length === 0) {
+    return;
+  }
+
+  // Resolve in batch if supported, otherwise resolve one by one
+  let results: ContextBatchResult;
+
+  if (resolver.resolveBatch) {
+    results = await resolver.resolveBatch(paths);
+  } else {
+    results = new Map();
+    for (const path of paths) {
+      results.set(path, await resolver.resolve(path));
+    }
+  }
+
+  // Apply resolved content to the AST
+  applyResolvedContext(ast, results);
+}
 
 /**
  * Creates a new Echo instance with the given configuration.
@@ -226,7 +270,12 @@ export function createEcho(config: EchoConfig = {}): Echo {
         operators
       );
 
-      // Step 3: Render
+      // Step 3: Resolve context references (if resolver provided)
+      if (config.contextResolver) {
+        await resolveContextNodes(evaluatedAst, config.contextResolver);
+      }
+
+      // Step 4: Render
       return render(evaluatedAst, {
         context,
         config,

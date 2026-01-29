@@ -52,6 +52,11 @@ export interface SyntaxPattern {
   captures?: Record<number, string>;
   description: string;
   examples: string[];
+  autocomplete?: {
+    trigger: string;
+    snippet: string;
+  };
+  notes?: string;
 }
 
 /**
@@ -163,28 +168,67 @@ export function getOperator(
 }
 
 /**
+ * Autocomplete trigger definition for IDE integration.
+ */
+export interface AutocompleteTrigger {
+  trigger: string;
+  snippet: string;
+  description: string;
+  type: 'operator' | 'directive';
+}
+
+/**
  * Get all autocomplete triggers for IDE integration.
+ * Includes both operators and directives (like #context).
  */
 export function getAutocompleteTriggers(
   lang: LanguageDefinition
-): Array<{ trigger: string; snippet: string; description: string }> {
-  const triggers: Array<{
-    trigger: string;
-    snippet: string;
-    description: string;
-  }> = [];
+): AutocompleteTrigger[] {
+  const triggers: AutocompleteTrigger[] = [];
 
+  // Add operator autocompletes
   for (const [_name, op] of Object.entries(lang.operators)) {
     if (op.autocomplete) {
       triggers.push({
         trigger: op.autocomplete.trigger,
         snippet: op.autocomplete.snippet,
         description: op.description,
+        type: 'operator',
+      });
+    }
+  }
+
+  // Add directive autocompletes (from syntax patterns)
+  for (const [_name, pattern] of Object.entries(lang.syntax)) {
+    if (pattern.autocomplete) {
+      triggers.push({
+        trigger: pattern.autocomplete.trigger,
+        snippet: pattern.autocomplete.snippet,
+        description: pattern.description,
+        type: 'directive',
       });
     }
   }
 
   return triggers;
+}
+
+/**
+ * Get directive autocomplete triggers only.
+ */
+export function getDirectiveAutocompleteTriggers(
+  lang: LanguageDefinition
+): AutocompleteTrigger[] {
+  return getAutocompleteTriggers(lang).filter((t) => t.type === 'directive');
+}
+
+/**
+ * Get operator autocomplete triggers only.
+ */
+export function getOperatorAutocompleteTriggers(
+  lang: LanguageDefinition
+): AutocompleteTrigger[] {
+  return getAutocompleteTriggers(lang).filter((t) => t.type === 'operator');
 }
 
 /**

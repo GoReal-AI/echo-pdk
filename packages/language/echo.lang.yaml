@@ -76,6 +76,27 @@ syntax:
       - "[#INCLUDE header]"
       - "[#INCLUDE system_prompt]"
 
+  # Context directive - reference files/images from Context Store
+  context:
+    pattern: "#context\\(([^)]+)\\)"
+    captures:
+      1: context.path
+    description: "Reference a file or image from Context Store"
+    examples:
+      - "#context(product-image)"
+      - "#context(plp://brand-guidelines)"
+    autocomplete:
+      trigger: "#con"
+      snippet: "#context($1)"
+    notes: |
+      Context references can be:
+      - Local: #context(name) - References from prompt's context mapping
+      - Global: #context(plp://asset-id) - Direct Context Store reference
+
+      Supported content types:
+      - Images: png, jpg, jpeg, gif, webp (rendered as base64 data URLs)
+      - Text: txt, md, json, yaml, xml (rendered inline)
+
 # =============================================================================
 # OPERATORS
 # =============================================================================
@@ -216,6 +237,16 @@ validation:
     level: warning
     description: "Warn about deprecated syntax patterns"
     message: "Deprecated syntax: {{pattern}}"
+
+  unresolvedContext:
+    level: error
+    description: "Flag context references that cannot be resolved"
+    message: "Unresolved context: #context({{path}})"
+
+  invalidContextPath:
+    level: error
+    description: "Flag invalid context path format"
+    message: "Invalid context path: {{path}} - must be alphanumeric or plp:// reference"
 
 # =============================================================================
 # EXTENSIBILITY

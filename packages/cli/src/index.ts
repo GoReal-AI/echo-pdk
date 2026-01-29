@@ -37,6 +37,7 @@ program
   .description('Render an Echo template with context')
   .option('-c, --context <json>', 'Context as JSON string')
   .option('-f, --context-file <path>', 'Path to context JSON file')
+  .option('-d, --context-dir <path>', 'Directory for #context() file resolution')
   .option('-o, --output <path>', 'Output file path (stdout if not specified)')
   .option('--strict', 'Fail on any error', false)
   .option('--trim', 'Trim whitespace from output', false)

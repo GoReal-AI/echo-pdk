@@ -219,6 +219,8 @@ export interface EchoConfig {
   plugins?: string[];
   /** Language definition file path */
   languagePath?: string;
+  /** Context resolver for #context() directives */
+  contextResolver?: import('./context/resolver.js').ContextResolver;
 }
 
 // =============================================================================
