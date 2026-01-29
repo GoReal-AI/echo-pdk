@@ -48,6 +48,7 @@ import {
   EndSection,
   Import,
   Include,
+  ContextOpen,
   Operator,
   Identifier,
   StringLiteral,
@@ -58,6 +59,7 @@ import {
   DefaultOp,
   Equals,
   OperatorArgText,
+  ContextArgText,
 } from './lexer.js';
 import {
   createTextNode,
@@ -67,6 +69,7 @@ import {
   createSectionNode,
   createImportNode,
   createIncludeNode,
+  createContextNode,
 } from './ast.js';
 
 // =============================================================================
@@ -103,7 +106,7 @@ class EchoParser extends CstParser {
   });
 
   /**
-   * A node can be text, variable, conditional, section, import, or include
+   * A node can be text, variable, conditional, section, import, include, or context
    */
   private node = this.RULE('node', () => {
     this.OR([
@@ -113,6 +116,7 @@ class EchoParser extends CstParser {
       { ALT: () => this.SUBRULE(this.sectionNode) },
       { ALT: () => this.SUBRULE(this.importNode) },
       { ALT: () => this.SUBRULE(this.includeNode) },
+      { ALT: () => this.SUBRULE(this.contextNode) },
     ]);
   });
 
@@ -248,6 +252,21 @@ class EchoParser extends CstParser {
     this.CONSUME(Identifier);
     this.CONSUME(CloseBracket);
   });
+
+  /**
+   * Context reference: #context(path)
+   *
+   * @example
+   * #context(product-image)          - From prompt's context mapping
+   * #context(plp://logo-v2)          - Direct Context Store reference
+   */
+  private contextNode = this.RULE('contextNode', () => {
+    this.CONSUME(ContextOpen);
+    this.OPTION(() => {
+      this.CONSUME(ContextArgText);
+    });
+    this.CONSUME(RParen);
+  });
 }
 
 // =============================================================================
@@ -323,6 +342,9 @@ class EchoAstVisitor extends BaseCstVisitor {
     }
     if (ctx.includeNode?.[0]) {
       return this.visit(ctx.includeNode[0]);
+    }
+    if (ctx.contextNode?.[0]) {
+      return this.visit(ctx.contextNode[0]);
     }
     return undefined;
   }
@@ -597,6 +619,28 @@ class EchoAstVisitor extends BaseCstVisitor {
 
     return createIncludeNode(name, location);
   }
+
+  /**
+   * Visit a context node.
+   *
+   * @example
+   * #context(product-image)          - From prompt's context mapping
+   * #context(plp://logo-v2)          - Direct Context Store reference
+   */
+  contextNode(ctx: CstContextNodeContext): ASTNode {
+    const contextOpenToken = ctx.ContextOpen?.[0];
+    const rparenToken = ctx.RParen?.[0];
+    const argTextToken = ctx.ContextArgText?.[0];
+
+    // Extract the path, trimming any whitespace
+    const path = argTextToken?.image?.trim() ?? '';
+
+    const location = contextOpenToken && rparenToken
+      ? mergeLocations(getTokenLocation(contextOpenToken), getTokenLocation(rparenToken))
+      : defaultLocation;
+
+    return createContextNode(path, location);
+  }
 }
 
 // Create singleton visitor instance
@@ -617,6 +661,7 @@ interface CstNodeContext {
   sectionNode?: CstNode[];
   importNode?: CstNode[];
   includeNode?: CstNode[];
+  contextNode?: CstNode[];
 }
 
 interface CstTextNodeContext {
@@ -685,6 +730,12 @@ interface CstIncludeNodeContext {
   Include?: IToken[];
   CloseBracket?: IToken[];
   Identifier?: IToken[];
+}
+
+interface CstContextNodeContext {
+  ContextOpen?: IToken[];
+  ContextArgText?: IToken[];
+  RParen?: IToken[];
 }
 
 // =============================================================================

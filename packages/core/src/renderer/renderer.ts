@@ -20,6 +20,7 @@ import type {
   ASTNode,
   VariableNode,
   TextNode,
+  ContextNode,
   EchoConfig,
   OperatorDefinition,
 } from '../types.js';
@@ -127,6 +128,9 @@ function renderNode(node: ASTNode, options: RenderOptions): string | undefined {
       }
       return undefined;
 
+    case 'context':
+      return renderContext(node, options);
+
     default: {
       // Exhaustiveness check
       const _exhaustive: never = node;
@@ -140,6 +144,38 @@ function renderNode(node: ASTNode, options: RenderOptions): string | undefined {
  */
 function renderText(node: TextNode): string {
   return node.value;
+}
+
+/**
+ * Render a context node.
+ *
+ * Context nodes reference files from the Context Store.
+ * They should be resolved before rendering (during evaluation phase).
+ *
+ * @param node - The context node
+ * @param options - Render options
+ * @returns The resolved content or a placeholder
+ */
+function renderContext(node: ContextNode, options: RenderOptions): string {
+  // If content has been resolved, render it
+  if (node.resolvedContent) {
+    // For images, return the data URL (consumer will handle formatting)
+    if (node.resolvedContent.dataUrl) {
+      return node.resolvedContent.dataUrl;
+    }
+    // For text content, return the text
+    if (node.resolvedContent.text) {
+      return node.resolvedContent.text;
+    }
+  }
+
+  // Content not resolved - context should be resolved before rendering
+  if (options.config?.strict) {
+    throw new Error(`Unresolved context: ${node.path}`);
+  }
+
+  // Lenient mode: return placeholder
+  return `[CONTEXT: ${node.path}]`;
 }
 
 /**

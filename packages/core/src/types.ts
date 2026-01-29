@@ -117,6 +117,35 @@ export interface IncludeNode extends BaseNode {
 }
 
 /**
+ * Resolved content from a context reference.
+ * Contains either a data URL (for images) or inline text.
+ */
+export interface ResolvedContextContent {
+  /** MIME type of the content, e.g., "image/png" or "text/plain" */
+  mimeType: string;
+  /** Base64 data URL for images: data:image/png;base64,... */
+  dataUrl?: string;
+  /** Inline text content for text files */
+  text?: string;
+}
+
+/**
+ * Context reference: #context(path)
+ * Resolves to file content (image or text) from the Context Store.
+ *
+ * @example
+ * #context(product-image)          // Reference from prompt's context mapping
+ * #context(plp://logo-v2)          // Direct Context Store reference
+ */
+export interface ContextNode extends BaseNode {
+  type: 'context';
+  /** The path to the context asset (e.g., "product-image" or "plp://logo-v2") */
+  path: string;
+  /** Resolved content (populated during rendering) */
+  resolvedContent?: ResolvedContextContent;
+}
+
+/**
  * Union type of all possible AST nodes.
  */
 export type ASTNode =
@@ -125,7 +154,8 @@ export type ASTNode =
   | ConditionalNode
   | SectionNode
   | ImportNode
-  | IncludeNode;
+  | IncludeNode
+  | ContextNode;
 
 // =============================================================================
 // OPERATOR TYPES

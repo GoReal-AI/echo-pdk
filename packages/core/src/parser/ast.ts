@@ -29,6 +29,7 @@ import type {
   SectionNode,
   ImportNode,
   IncludeNode,
+  ContextNode,
   SourceLocation,
   ConditionExpr,
 } from '../types.js';
@@ -145,6 +146,33 @@ export function createIncludeNode(
   };
 }
 
+/**
+ * Create a ContextNode.
+ *
+ * @param path - The path to the context asset (e.g., "product-image" or "plp://logo-v2")
+ * @param location - Source location
+ * @returns A new ContextNode
+ *
+ * @example
+ * ```typescript
+ * const node = createContextNode('product-image', location);
+ * // { type: 'context', path: 'product-image', location }
+ *
+ * const node2 = createContextNode('plp://logo-v2', location);
+ * // { type: 'context', path: 'plp://logo-v2', location }
+ * ```
+ */
+export function createContextNode(
+  path: string,
+  location: SourceLocation
+): ContextNode {
+  return {
+    type: 'context',
+    path,
+    location,
+  };
+}
+
 // =============================================================================
 // VISITOR PATTERN
 // =============================================================================
@@ -160,6 +188,7 @@ export interface ASTVisitor<T = void> {
   visitSection?(node: SectionNode): T;
   visitImport?(node: ImportNode): T;
   visitInclude?(node: IncludeNode): T;
+  visitContext?(node: ContextNode): T;
 }
 
 /**
@@ -183,6 +212,8 @@ export function visitNode<T>(node: ASTNode, visitor: ASTVisitor<T>): T | undefin
       return visitor.visitImport?.(node);
     case 'include':
       return visitor.visitInclude?.(node);
+    case 'context':
+      return visitor.visitContext?.(node);
     default: {
       // Exhaustiveness check
       const _exhaustive: never = node;
@@ -309,6 +340,9 @@ export function prettyPrint(ast: ASTNode[], indent = 0): string {
         break;
       case 'include':
         lines.push(`${pad}INCLUDE: ${node.name}`);
+        break;
+      case 'context':
+        lines.push(`${pad}CONTEXT: #context(${node.path})`);
         break;
     }
   }

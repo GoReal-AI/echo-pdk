@@ -30,8 +30,11 @@ export type {
   SectionNode,
   ImportNode,
   IncludeNode,
+  ContextNode,
   ConditionExpr,
   SourceLocation,
+  // Context types
+  ResolvedContextContent,
   // Configuration
   EchoConfig,
   AIProviderConfig,
@@ -65,6 +68,7 @@ import { evaluate } from './evaluator/evaluator.js';
 import { render, formatErrors } from './renderer/renderer.js';
 import { builtinOperators, getOperator } from './evaluator/operators.js';
 import { createOpenAIProvider, withCache } from './ai-judge/index.js';
+import { validateContextPath } from './context/index.js';
 
 // Re-export utilities for advanced usage
 export { parse } from './parser/parser.js';
@@ -83,11 +87,30 @@ export {
   createSectionNode,
   createImportNode,
   createIncludeNode,
+  createContextNode,
   collectAiJudgeConditions,
   visitNode,
   visitNodes,
   prettyPrint,
+  type ASTVisitor,
 } from './parser/ast.js';
+
+// Re-export context module
+export {
+  // Types
+  type ContextResolver,
+  type ContextResolveResult,
+  type ContextBatchResult,
+  // Validation
+  isPlpReference,
+  extractAssetId,
+  validateContextPath,
+  // AST Helpers
+  collectContextPaths,
+  applyResolvedContext,
+  // Mock Resolver
+  MockContextResolver,
+} from './context/index.js';
 
 /**
  * Environment variable name for API key.
@@ -477,6 +500,20 @@ function validateNodes(
           message: `Import will not be resolved: ${node.path}`,
           location: node.location,
         });
+        break;
+      }
+
+      case 'context': {
+        // Validate context path
+        const validation = validateContextPath(node.path);
+        if (!validation.isValid) {
+          const error: EchoError = {
+            code: 'INVALID_CONTEXT_PATH',
+            message: `Invalid context path: ${validation.error}`,
+            location: node.location,
+          };
+          errors.push(error);
+        }
         break;
       }
     }

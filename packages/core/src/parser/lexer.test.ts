@@ -190,6 +190,70 @@ describe('lexer', () => {
     });
   });
 
+  describe('context tokenization', () => {
+    it('should tokenize simple context reference', () => {
+      const result = tokenize('#context(product-image)');
+      expect(result.errors).toHaveLength(0);
+
+      const tokenNames = result.tokens.map((t) => t.tokenType.name);
+      expect(tokenNames).toContain('ContextOpen');
+      expect(tokenNames).toContain('ContextArgText');
+      expect(tokenNames).toContain('RParenContextArg');
+    });
+
+    it('should tokenize context with plp:// reference', () => {
+      const result = tokenize('#context(plp://logo-v2)');
+      expect(result.errors).toHaveLength(0);
+
+      const argText = result.tokens.find((t) => t.tokenType.name === 'ContextArgText');
+      expect(argText?.image).toBe('plp://logo-v2');
+    });
+
+    it('should tokenize context with underscores and hyphens', () => {
+      const result = tokenize('#context(my_image-v2)');
+      expect(result.errors).toHaveLength(0);
+
+      const argText = result.tokens.find((t) => t.tokenType.name === 'ContextArgText');
+      expect(argText?.image).toBe('my_image-v2');
+    });
+
+    it('should tokenize text with embedded context reference', () => {
+      const result = tokenize('Image: #context(hero) and more text');
+      expect(result.errors).toHaveLength(0);
+
+      const textTokens = result.tokens.filter((t) => t.tokenType.name === 'Text');
+      expect(textTokens).toHaveLength(2);
+      expect(textTokens[0].image).toBe('Image: ');
+      expect(textTokens[1].image).toBe(' and more text');
+    });
+
+    it('should allow # in regular text', () => {
+      const result = tokenize('Item #1 is great');
+      expect(result.errors).toHaveLength(0);
+
+      const textTokens = result.tokens.filter((t) => t.tokenType.name === 'Text');
+      expect(textTokens).toHaveLength(1);
+      expect(textTokens[0].image).toBe('Item #1 is great');
+    });
+
+    it('should tokenize multiple context references', () => {
+      const result = tokenize('#context(img1) and #context(img2)');
+      expect(result.errors).toHaveLength(0);
+
+      const contextOpens = result.tokens.filter((t) => t.tokenType.name === 'ContextOpen');
+      expect(contextOpens).toHaveLength(2);
+    });
+
+    it('should handle context mixed with variables', () => {
+      const result = tokenize('Hello {{name}}, here is #context(image)');
+      expect(result.errors).toHaveLength(0);
+
+      const tokenNames = result.tokens.map((t) => t.tokenType.name);
+      expect(tokenNames).toContain('VariableOpenDefault');
+      expect(tokenNames).toContain('ContextOpen');
+    });
+  });
+
   describe('complex templates', () => {
     it('should tokenize nested conditionals', () => {
       const template = `

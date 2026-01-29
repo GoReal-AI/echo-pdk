@@ -142,6 +142,20 @@ export const Include = createToken({
   push_mode: 'DIRECTIVE_MODE',
 });
 
+/**
+ * #context( - Context reference (pushes to CONTEXT_ARG_MODE to capture path)
+ *
+ * Used inline in text to reference files from the Context Store.
+ * Examples:
+ *   #context(product-image)     - Reference from prompt's context mapping
+ *   #context(plp://logo-v2)     - Direct Context Store reference
+ */
+export const ContextOpen = createToken({
+  name: 'ContextOpen',
+  pattern: /#context\(/,
+  push_mode: 'CONTEXT_ARG_MODE',
+});
+
 // -----------------------------------------------------------------------------
 // Variable Syntax - Mode-Specific Variants
 // -----------------------------------------------------------------------------
@@ -272,6 +286,25 @@ export const OperatorArgText = createToken({
 });
 
 /**
+ * Context argument text - captures the context path until closing paren.
+ * Supports: alphanumeric, hyphens, underscores, dots, and plp:// prefix.
+ */
+export const ContextArgText = createToken({
+  name: 'ContextArgText',
+  pattern: /[^)]+/,
+});
+
+/**
+ * ) - Right parenthesis that pops from CONTEXT_ARG_MODE
+ */
+const RParenContextArg = createToken({
+  name: 'RParenContextArg',
+  pattern: /\)/,
+  pop_mode: true,
+  categories: [RParen], // Extends RParen so parser sees it the same
+});
+
+/**
  * , - Comma separator in argument lists
  */
 export const Comma = createToken({
@@ -316,12 +349,13 @@ export const WhiteSpace = createToken({
  * - `{{` (variable start)
  * - `[#` (directive start: [#IF, [#SECTION, [#IMPORT, [#INCLUDE)
  * - `[E` (branch/end markers: [ELSE], [ELSE IF, [END IF], [END SECTION])
+ * - `#context(` (context reference)
  *
- * REGEX BREAKDOWN: /(?:[^\[{]|\[(?![#E])|\{(?!\{))+/
+ * REGEX BREAKDOWN: /(?:[^\[{#]|\[(?![#E])|\{(?!\{)|#(?!context\())+/
  *
- *   (?:                    Non-capturing group containing three alternatives:
+ *   (?:                    Non-capturing group containing four alternatives:
  *   │
- *   ├─ [^\[{]              Alt 1: Any character EXCEPT '[' or '{'
+ *   ├─ [^\[{#]             Alt 1: Any character EXCEPT '[', '{', or '#'
  *   │                            These are safe - no special meaning
  *   │
  *   ├─ \[(?![#E])          Alt 2: A '[' NOT followed by '#' or 'E'
@@ -330,10 +364,15 @@ export const WhiteSpace = createToken({
  *   │                              - [# (directives like [#IF)
  *   │                              - [E (branches like [ELSE], [END IF])
  *   │
- *   └─ \{(?!\{)            Alt 3: A '{' NOT followed by another '{'
- *       │                        Allows: single { in text
- *       └─ (?!\{)                Negative lookahead excludes:
- *                                  - {{ (variable start)
+ *   ├─ \{(?!\{)            Alt 3: A '{' NOT followed by another '{'
+ *   │   │                        Allows: single { in text
+ *   │   └─ (?!\{)                Negative lookahead excludes:
+ *   │                              - {{ (variable start)
+ *   │
+ *   └─ #(?!context\()      Alt 4: A '#' NOT followed by 'context('
+ *       │                        Allows: #1, #foo, #anything-else
+ *       └─ (?!context\()         Negative lookahead excludes:
+ *                                  - #context( (context reference)
  *   )+                     One or more matches (greedy)
  *
  * EXAMPLES:
@@ -342,10 +381,12 @@ export const WhiteSpace = createToken({
  *   "Price: $[100]"   → matches entirely ([1 is not [# or [E)
  *   "Use {braces}"    → matches entirely (single { is allowed)
  *   "[#IF ..."        → matches nothing (starts with [#)
+ *   "Item #1"         → matches entirely (#1 is not #context()
+ *   "#context(x)"     → matches nothing (starts with #context()
  */
 export const Text = createToken({
   name: 'Text',
-  pattern: /(?:[^\[{]|\[(?![#E])|\{(?!\{))+/,
+  pattern: /(?:[^\[{#]|\[(?![#E])|\{(?!\{)|#(?!context\())+/,
   line_breaks: true,
 });
 
@@ -369,6 +410,9 @@ const defaultModeTokens: TokenType[] = [
   SectionOpen,
   Import,
   Include,
+
+  // Context reference (push to CONTEXT_ARG_MODE)
+  ContextOpen,
 
   // Variable (push to VARIABLE_MODE)
   VariableOpenDefault,
@@ -436,6 +480,18 @@ const operatorArgModeTokens: TokenType[] = [
   OperatorArgText,
 ];
 
+/**
+ * Tokens used inside context arguments #context( ... )
+ * Captures the context path until closing paren.
+ */
+const contextArgModeTokens: TokenType[] = [
+  // End of context (pop mode)
+  RParenContextArg,
+
+  // Context path text
+  ContextArgText,
+];
+
 // =============================================================================
 // MULTI-MODE LEXER DEFINITION
 // =============================================================================
@@ -450,6 +506,7 @@ const multiModeLexerDefinition: IMultiModeLexerDefinition = {
     DIRECTIVE_MODE: directiveModeTokens,
     VARIABLE_MODE: variableModeTokens,
     OPERATOR_ARG_MODE: operatorArgModeTokens,
+    CONTEXT_ARG_MODE: contextArgModeTokens,
   },
   defaultMode: 'DEFAULT_MODE',
 };
@@ -476,6 +533,9 @@ export const allTokens: TokenType[] = [
   Import,
   Include,
 
+  // Context reference
+  ContextOpen,
+
   // Mode-specific variable tokens (extend categories)
   VariableOpenDefault,
   VariableOpenDirective,
@@ -490,10 +550,14 @@ export const allTokens: TokenType[] = [
   LParen,
   RParen,
   RParenOperatorArg,
+  RParenContextArg,
   Comma,
 
   // Operator argument mode tokens
   OperatorArgText,
+
+  // Context argument mode tokens
+  ContextArgText,
 
   // Literals
   StringLiteral,

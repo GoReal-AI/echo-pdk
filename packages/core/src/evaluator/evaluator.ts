@@ -418,6 +418,12 @@ async function evaluateNode(
       return [];
     }
 
+    case 'context':
+      // Context nodes are passed through to the renderer
+      // Context resolution happens separately (either during evaluation or in the renderer)
+      // This allows context to be resolved in batch for efficiency
+      return [node];
+
     default: {
       // Exhaustiveness check
       const _exhaustive: never = node;

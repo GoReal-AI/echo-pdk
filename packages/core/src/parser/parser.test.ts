@@ -187,6 +187,88 @@ describe('parser', () => {
     });
   });
 
+  describe('context parsing', () => {
+    it('should parse simple context reference', () => {
+      const result = parse('#context(product-image)');
+      expect(result.success).toBe(true);
+      expect(result.ast).toHaveLength(1);
+      expect(result.ast?.[0].type).toBe('context');
+      if (result.ast?.[0].type === 'context') {
+        expect(result.ast[0].path).toBe('product-image');
+      }
+    });
+
+    it('should parse context with plp:// reference', () => {
+      const result = parse('#context(plp://logo-v2)');
+      expect(result.success).toBe(true);
+      expect(result.ast?.[0].type).toBe('context');
+      if (result.ast?.[0].type === 'context') {
+        expect(result.ast[0].path).toBe('plp://logo-v2');
+      }
+    });
+
+    it('should parse text with embedded context', () => {
+      const result = parse('Image: #context(hero) done');
+      expect(result.success).toBe(true);
+      expect(result.ast).toHaveLength(3);
+      expect(result.ast?.[0].type).toBe('text');
+      expect(result.ast?.[1].type).toBe('context');
+      expect(result.ast?.[2].type).toBe('text');
+    });
+
+    it('should parse multiple context references', () => {
+      const result = parse('#context(img1) and #context(img2)');
+      expect(result.success).toBe(true);
+
+      const contexts = result.ast?.filter((n) => n.type === 'context');
+      expect(contexts).toHaveLength(2);
+      if (contexts?.[0].type === 'context' && contexts?.[1].type === 'context') {
+        expect(contexts[0].path).toBe('img1');
+        expect(contexts[1].path).toBe('img2');
+      }
+    });
+
+    it('should parse context with variables', () => {
+      const result = parse('Hello {{name}}, here is #context(image)');
+      expect(result.success).toBe(true);
+
+      const variable = result.ast?.find((n) => n.type === 'variable');
+      const context = result.ast?.find((n) => n.type === 'context');
+      expect(variable).toBeDefined();
+      expect(context).toBeDefined();
+    });
+
+    it('should parse context inside conditional', () => {
+      const template = '[#IF {{show}} #exists]#context(hero-image)[END IF]';
+      const result = parse(template);
+      expect(result.success).toBe(true);
+
+      if (result.ast?.[0].type === 'conditional') {
+        const contextNode = result.ast[0].consequent.find((n) => n.type === 'context');
+        expect(contextNode).toBeDefined();
+        if (contextNode?.type === 'context') {
+          expect(contextNode.path).toBe('hero-image');
+        }
+      }
+    });
+
+    it('should track source location for context nodes', () => {
+      const result = parse('#context(test)');
+      expect(result.success).toBe(true);
+      expect(result.ast?.[0].location).toBeDefined();
+      expect(result.ast?.[0].location.startLine).toBe(1);
+      expect(result.ast?.[0].location.startColumn).toBe(1);
+    });
+
+    it('should handle empty context gracefully', () => {
+      const result = parse('#context()');
+      expect(result.success).toBe(true);
+      if (result.ast?.[0].type === 'context') {
+        expect(result.ast[0].path).toBe('');
+      }
+    });
+  });
+
   describe('source locations', () => {
     it('should track locations for text nodes', () => {
       const result = parse('Hello');
