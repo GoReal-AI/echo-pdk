@@ -251,6 +251,7 @@ export function createEcho(config: EchoConfig = {}): Echo {
   // Set up PLP resolver if plp config is provided and no custom resolver
   if (config.plp && !config.contextResolver) {
     config.contextResolver = createPlpResolver({
+      client: config.plp.client,
       serverUrl: config.plp.serverUrl,
       auth: config.plp.auth,
       promptId: config.plp.promptId,
