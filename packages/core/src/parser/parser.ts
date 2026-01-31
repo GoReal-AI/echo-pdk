@@ -24,52 +24,53 @@
  *   include      := "[#INCLUDE" IDENTIFIER "]"
  */
 
-import { CstParser, type CstNode, type IToken } from 'chevrotain';
+import { type CstNode, CstParser, type IToken } from 'chevrotain';
 import type {
   ASTNode,
+  ConditionalNode,
+  ConditionExpr,
+  EchoError,
   ParseResult,
   SourceLocation,
-  EchoError,
-  ConditionExpr,
-  ConditionalNode,
+  VariableType,
 } from '../types.js';
 import {
   allTokens,
-  tokenize,
-  formatLexerErrors,
-  Text,
-  VariableOpen,
-  VariableClose,
-  IfOpen,
-  ElseIf,
+  CloseBracket,
+  ContextArgText,
+  ContextOpen,
+  DefaultOp,
   Else,
+  ElseIf,
   EndIf,
-  SectionOpen,
   EndSection,
+  Equals,
+  formatLexerErrors,
+  Identifier,
+  IfOpen,
   Import,
   Include,
-  ContextOpen,
-  Operator,
-  Identifier,
-  StringLiteral,
-  NumberLiteral,
   LParen,
-  RParen,
-  CloseBracket,
-  DefaultOp,
-  Equals,
+  NumberLiteral,
+  Operator,
   OperatorArgText,
-  ContextArgText,
+  RParen,
+  SectionOpen,
+  StringLiteral,
+  Text,
+  tokenize,
+  VariableClose,
+  VariableOpen,
 } from './lexer.js';
 import {
-  createTextNode,
-  createVariableNode,
   createConditionalNode,
   createConditionExpr,
-  createSectionNode,
+  createContextNode,
   createImportNode,
   createIncludeNode,
-  createContextNode,
+  createSectionNode,
+  createTextNode,
+  createVariableNode,
 } from './ast.js';
 
 // =============================================================================
@@ -362,6 +363,9 @@ class EchoAstVisitor extends BaseCstVisitor {
 
   /**
    * Visit a variable node.
+   *
+   * Supports typed variable syntax: {{varName:type}}
+   * Where type can be: text (default), boolean, number, file
    */
   variableNode(ctx: CstVariableNodeContext): ASTNode {
     const openToken = ctx.VariableOpen?.[0];
@@ -372,7 +376,26 @@ class EchoAstVisitor extends BaseCstVisitor {
       return createVariableNode('', defaultLocation);
     }
 
-    const path = identifierToken.image;
+    // Parse varName:type syntax
+    const fullContent = identifierToken.image;
+    const colonIndex = fullContent.lastIndexOf(':');
+
+    let path: string;
+    let varType: VariableType = 'text';
+
+    if (colonIndex > 0) {
+      // Has type suffix
+      const potentialType = fullContent.slice(colonIndex + 1).trim().toLowerCase();
+      if (isVariableType(potentialType)) {
+        path = fullContent.slice(0, colonIndex).trim();
+        varType = normalizeVariableType(potentialType);
+      } else {
+        // Not a valid type, treat as regular path (might be part of object notation)
+        path = fullContent;
+      }
+    } else {
+      path = fullContent;
+    }
 
     let defaultValue: string | undefined;
     if (ctx.DefaultOp && (ctx.StringLiteral || ctx.NumberLiteral)) {
@@ -386,7 +409,7 @@ class EchoAstVisitor extends BaseCstVisitor {
       ? mergeLocations(getTokenLocation(openToken), getTokenLocation(closeToken))
       : getTokenLocation(identifierToken);
 
-    return createVariableNode(path, location, defaultValue);
+    return createVariableNode(path, location, varType, defaultValue);
   }
 
   /**
@@ -418,8 +441,7 @@ class EchoAstVisitor extends BaseCstVisitor {
 
     // Handle ELSE block (process first as it's the end of the chain)
     if (ctx.elseBlock?.[0]) {
-      const elseNodes = this.visit(ctx.elseBlock[0]) as ASTNode[];
-      alternate = elseNodes;
+      alternate = this.visit(ctx.elseBlock[0]) as ASTNode[];
     }
 
     // Handle ELSE IF blocks (in reverse order to build the chain)
@@ -427,8 +449,7 @@ class EchoAstVisitor extends BaseCstVisitor {
       for (let i = ctx.elseIfBlock.length - 1; i >= 0; i--) {
         const elseIfCtx = ctx.elseIfBlock[i];
         if (elseIfCtx) {
-          const elseIfResult = this.visitElseIfBlockWithAlternate(elseIfCtx, alternate);
-          alternate = elseIfResult;
+          alternate = this.visitElseIfBlockWithAlternate(elseIfCtx, alternate);
         }
       }
     }
@@ -811,6 +832,36 @@ function stripQuotes(str: string): string {
     return str.slice(1, -1);
   }
   return str;
+}
+
+/**
+ * Check if a string is a valid variable type.
+ * Supports aliases for convenience (bool, num, int, float).
+ */
+function isVariableType(str: string): str is VariableType {
+  const validTypes = ['text', 'boolean', 'bool', 'number', 'num', 'int', 'float', 'file'];
+  return validTypes.includes(str);
+}
+
+/**
+ * Normalize variable type aliases to canonical form.
+ */
+function normalizeVariableType(str: string): VariableType {
+  switch (str.toLowerCase()) {
+    case 'boolean':
+    case 'bool':
+      return 'boolean';
+    case 'number':
+    case 'num':
+    case 'int':
+    case 'float':
+      return 'number';
+    case 'file':
+      return 'file';
+    case 'text':
+    default:
+      return 'text';
+  }
 }
 
 /**

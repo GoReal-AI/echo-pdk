@@ -26,6 +26,7 @@ export type {
   ASTNode,
   TextNode,
   VariableNode,
+  VariableType,
   ConditionalNode,
   SectionNode,
   ImportNode,
@@ -35,6 +36,7 @@ export type {
   SourceLocation,
   // Context types
   ResolvedContextContent,
+  FileVariableValue,
   // Configuration
   EchoConfig,
   AIProviderConfig,
@@ -70,9 +72,9 @@ import type {
 
 // Import submodules
 import { parse } from './parser/parser.js';
-import { evaluate } from './evaluator/evaluator.js';
+import { evaluate } from './evaluator/index.js';
 import { render, renderMultimodal, formatErrors } from './renderer/renderer.js';
-import { builtinOperators, getOperator } from './evaluator/operators.js';
+import { builtinOperators, getOperator } from './evaluator/index.js';
 import { createOpenAIProvider, withCache } from './ai-judge/index.js';
 import {
   validateContextPath,
@@ -130,6 +132,29 @@ export {
   PlpContextResolver,
   createPlpResolver,
 } from './context/index.js';
+
+// Re-export file utilities for typed variable handling
+export {
+  // MIME type detection
+  detectMimeTypeFromDataUrl,
+  detectMimeTypeFromFilename,
+  // File type validation
+  isSupportedFileType,
+  isImageMimeType,
+  isDocumentMimeType,
+  isTextMimeType,
+  // Value normalization
+  normalizeFileValue,
+  normalizeBooleanValue,
+  normalizeNumberValue,
+  getFileTypeCategory,
+  // Supported types
+  SUPPORTED_IMAGE_TYPES,
+  SUPPORTED_DOCUMENT_TYPES,
+  SUPPORTED_TEXT_TYPES,
+  SUPPORTED_MIME_TYPES,
+  type SupportedMimeType,
+} from './utils/file-utils.js';
 
 /**
  * Environment variable name for API key.
@@ -398,10 +423,10 @@ export function createEcho(config: EchoConfig = {}): Echo {
      */
     loadPlugin(plugin: EchoPlugin): void {
       // Validate plugin structure
-      if (!plugin.name || typeof plugin.name !== 'string') {
+      if (!plugin.name) {
         throw new Error('Plugin must have a name');
       }
-      if (!plugin.version || typeof plugin.version !== 'string') {
+      if (!plugin.version) {
         throw new Error('Plugin must have a version');
       }
 

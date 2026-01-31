@@ -18,16 +18,22 @@
 
 import type {
   ASTNode,
-  VariableNode,
-  TextNode,
+  ContentBlock,
   ContextNode,
   EchoConfig,
-  OperatorDefinition,
-  ContentBlock,
   MultimodalContent,
+  OperatorDefinition,
+  TextNode,
+  VariableNode,
 } from '../types.js';
 import { parse } from '../parser/parser.js';
 import { evaluate, resolveVariable } from '../evaluator/evaluator.js';
+import {
+  isSupportedFileType,
+  normalizeBooleanValue,
+  normalizeFileValue,
+  normalizeNumberValue,
+} from '../utils/file-utils.js';
 
 // =============================================================================
 // TYPES
@@ -135,8 +141,8 @@ function renderNode(node: ASTNode, options: RenderOptions): string | undefined {
 
     default: {
       // Exhaustiveness check
-      const _exhaustive: never = node;
-      throw new Error(`Unknown node type: ${(_exhaustive as ASTNode).type}`);
+      const exhaustiveCheck: never = node;
+      throw new Error(`Unknown node type: ${(exhaustiveCheck as ASTNode).type}`);
     }
   }
 }
@@ -237,7 +243,29 @@ export function renderMultimodal(ast: ASTNode[], options: RenderOptions): Multim
         break;
 
       case 'variable':
-        currentText += renderVariable(node, options);
+        // Handle file-typed variables specially for multimodal
+        if (node.varType === 'file') {
+          const value = resolveVariable(node.path, options.context, {
+            strict: options.config?.strict,
+          });
+          const fileValue = normalizeFileValue(value);
+
+          if (fileValue && isImageMimeType(fileValue.mimeType)) {
+            // Image file: flush text and add image block
+            flushText();
+            blocks.push({
+              type: 'image_url',
+              image_url: {
+                url: fileValue.dataUrl,
+              },
+            });
+          } else {
+            // Non-image file or invalid: render as text
+            currentText += renderVariable(node, options);
+          }
+        } else {
+          currentText += renderVariable(node, options);
+        }
         break;
 
       case 'conditional':
@@ -289,8 +317,7 @@ export function renderMultimodal(ast: ASTNode[], options: RenderOptions): Multim
 
       default: {
         // Exhaustiveness check
-        const _exhaustive: never = node;
-        throw new Error(`Unknown node type: ${(_exhaustive as ASTNode).type}`);
+        throw new Error(`Unknown node type: ${(node as ASTNode).type}`);
       }
     }
   }
@@ -337,6 +364,12 @@ function isImageMimeType(mimeType: string): boolean {
 /**
  * Render a variable node.
  *
+ * Supports typed variables:
+ * - text (default): String value from context
+ * - boolean: Normalizes to "true" or "false"
+ * - number: Parses and validates as number
+ * - file: For file references (returns data URL or placeholder)
+ *
  * @param node - The variable node
  * @param options - Render options
  * @returns The variable value as string
@@ -358,12 +391,49 @@ function renderVariable(node: VariableNode, options: RenderOptions): string {
       throw new Error(`Undefined variable: ${node.path}`);
     }
 
-    // Lenient mode: render empty string
-    return '';
+    // Lenient mode: render type-appropriate placeholder
+    switch (node.varType) {
+      case 'file':
+        return `[File not provided: ${node.path}]`;
+      case 'boolean':
+        return 'false';
+      case 'number':
+        return '0';
+      default:
+        return '';
+    }
   }
 
-  // Convert to string
-  return stringify(value);
+  // Handle based on variable type
+  switch (node.varType) {
+    case 'boolean':
+      return normalizeBooleanValue(value);
+
+    case 'number':
+      return normalizeNumberValue(value);
+
+    case 'file': {
+      const fileValue = normalizeFileValue(value);
+      if (!fileValue) {
+        if (options.config?.strict) {
+          throw new Error(`Invalid file value for variable: ${node.path}`);
+        }
+        return `[Invalid file: ${node.path}]`;
+      }
+      if (!isSupportedFileType(fileValue.mimeType)) {
+        if (options.config?.strict) {
+          throw new Error(`Unsupported file type: ${fileValue.mimeType}`);
+        }
+        return `[Unsupported file type: ${fileValue.mimeType}]`;
+      }
+      // Return the data URL for text rendering
+      return fileValue.dataUrl;
+    }
+
+    case 'text':
+    default:
+      return stringify(value);
+  }
 }
 
 /**

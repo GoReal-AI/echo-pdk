@@ -18,11 +18,11 @@
 import type {
   ASTNode,
   ConditionalNode,
-  SectionNode,
-  IncludeNode,
   ConditionExpr,
   EchoConfig,
+  IncludeNode,
   OperatorDefinition,
+  SectionNode,
 } from '../types.js';
 import { collectAiJudgeConditions } from '../parser/ast.js';
 import { getOperator } from './operators.js';
@@ -116,14 +116,14 @@ export function resolveVariable(
     }
 
     // Check for array access pattern: "items[0]" or "items[0][1]"
-    const segments = part.split(/(\[\d+\])/g).filter(Boolean);
+    const segments = part.split(/(\[\d+])/g).filter(Boolean);
 
     for (const segment of segments) {
       if (current === undefined || current === null) {
         return undefined;
       }
 
-      const arrayMatch = segment.match(/^\[(\d+)\]$/);
+      const arrayMatch = segment.match(/^\[(\d+)]$/);
       if (arrayMatch && arrayMatch[1]) {
         // Array index access
         const index = parseInt(arrayMatch[1], 10);
@@ -156,7 +156,7 @@ export function resolveVariable(
  */
 function validateArrayAccessPattern(segment: string, fullPath: string): void {
   // Find all bracket patterns in the segment
-  const bracketPattern = /\[([^\]]*)\]/g;
+  const bracketPattern = /\[([^\]]*)]/g;
   let match;
 
   while ((match = bracketPattern.exec(segment)) !== null) {
@@ -186,7 +186,7 @@ function validateArrayAccessPattern(segment: string, fullPath: string): void {
 
   // Check for unclosed brackets: items[0
   const openBrackets = (segment.match(/\[/g) || []).length;
-  const closeBrackets = (segment.match(/\]/g) || []).length;
+  const closeBrackets = (segment.match(/]/g) || []).length;
   if (openBrackets !== closeBrackets) {
     throw new Error(
       `Malformed array access in path "${fullPath}". Unclosed or unmatched brackets.`
@@ -239,8 +239,7 @@ export async function evaluateCondition(
 
   // Evaluate the operator
   try {
-    const result = await operator.handler(value, condition.argument);
-    return result;
+    return await operator.handler(value, condition.argument);
   } catch (error) {
     if (ctx.config.strict) {
       throw error;
@@ -426,8 +425,7 @@ async function evaluateNode(
 
     default: {
       // Exhaustiveness check
-      const _exhaustive: never = node;
-      throw new Error(`Unknown node type: ${(_exhaustive as ASTNode).type}`);
+      throw new Error(`Unknown node type: ${(node as ASTNode).type}`);
     }
   }
 }

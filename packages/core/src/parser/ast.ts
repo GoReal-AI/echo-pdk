@@ -23,15 +23,16 @@
 
 import type {
   ASTNode,
-  TextNode,
-  VariableNode,
   ConditionalNode,
-  SectionNode,
+  ConditionExpr,
+  ContextNode,
   ImportNode,
   IncludeNode,
-  ContextNode,
+  SectionNode,
   SourceLocation,
-  ConditionExpr,
+  TextNode,
+  VariableNode,
+  VariableType,
 } from '../types.js';
 
 // =============================================================================
@@ -54,15 +55,22 @@ export function createTextNode(
 
 /**
  * Create a VariableNode.
+ *
+ * @param path - The variable path (e.g., "user.name")
+ * @param location - Source location for error reporting
+ * @param varType - Variable type (text, boolean, number, file). Defaults to 'text'.
+ * @param defaultValue - Optional default value
  */
 export function createVariableNode(
   path: string,
   location: SourceLocation,
+  varType: VariableType = 'text',
   defaultValue?: string
 ): VariableNode {
   return {
     type: 'variable',
     path,
+    varType,
     defaultValue,
     location,
   };
@@ -215,9 +223,8 @@ export function visitNode<T>(node: ASTNode, visitor: ASTVisitor<T>): T | undefin
     case 'context':
       return visitor.visitContext?.(node);
     default: {
-      // Exhaustiveness check
-      const _exhaustive: never = node;
-      throw new Error(`Unknown node type: ${(_exhaustive as ASTNode).type}`);
+      // Exhaustiveness check - TypeScript will error if a case is missing
+      throw new Error(`Unknown node type: ${(node as ASTNode).type}`);
     }
   }
 }

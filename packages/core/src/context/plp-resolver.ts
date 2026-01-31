@@ -181,9 +181,17 @@ export class PlpContextResolver implements ContextResolver {
       }
     }
 
-    // Resolve plp:// references individually (no batch endpoint)
-    for (const path of plpRefs) {
-      results.set(path, await this.resolve(path));
+    // Resolve plp:// references in parallel
+    if (plpRefs.length > 0) {
+      const plpPromises = plpRefs.map(async (path) => {
+        const result = await this.resolve(path);
+        return { path, result };
+      });
+
+      const plpResults = await Promise.all(plpPromises);
+      for (const { path, result } of plpResults) {
+        results.set(path, result);
+      }
     }
 
     // Resolve prompt context names in batch if we have a promptId

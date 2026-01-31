@@ -27,6 +27,36 @@ export interface SourceLocation {
 }
 
 // =============================================================================
+// VARIABLE TYPES
+// =============================================================================
+
+/**
+ * Supported variable types for typed variable syntax.
+ *
+ * @example
+ * ```
+ * {{name}}             → text (default)
+ * {{age:number}}       → number
+ * {{isPremium:boolean}} → boolean
+ * {{report:file}}      → file from Context Store
+ * ```
+ */
+export type VariableType = 'text' | 'boolean' | 'number' | 'file';
+
+/**
+ * File variable value structure.
+ * Used when a variable is typed as `{{var:file}}`.
+ */
+export interface FileVariableValue {
+  /** Base64 data URL of the file content */
+  dataUrl: string;
+  /** MIME type of the file (e.g., 'image/png', 'application/pdf') */
+  mimeType: string;
+  /** Optional filename */
+  filename?: string;
+}
+
+// =============================================================================
 // AST NODE TYPES
 // =============================================================================
 
@@ -50,12 +80,14 @@ export interface TextNode extends BaseNode {
 
 /**
  * Variable reference in the template.
- * Example: {{user.name}} or {{value ?? "default"}}
+ * Example: {{user.name}} or {{value ?? "default"}} or {{age:number}}
  */
 export interface VariableNode extends BaseNode {
   type: 'variable';
   /** The variable path, e.g., "user.name" or "items[0]" */
   path: string;
+  /** The variable type (text, boolean, number, file). Defaults to 'text'. */
+  varType: VariableType;
   /** Optional default value if variable is undefined */
   defaultValue?: string;
 }

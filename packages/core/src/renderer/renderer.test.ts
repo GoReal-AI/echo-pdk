@@ -58,7 +58,7 @@ describe('render', () => {
     });
 
     it('should render variable with default when value is undefined', () => {
-      const ast = [createVariableNode('name', defaultLocation, 'Guest')];
+      const ast = [createVariableNode('name', defaultLocation, 'text', 'Guest')];
       const result = render(ast, { context: {} });
       expect(result).toBe('Guest');
     });
