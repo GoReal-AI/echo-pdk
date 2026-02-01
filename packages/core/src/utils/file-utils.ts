@@ -183,9 +183,18 @@ export function normalizeFileValue(value: unknown): FileVariableValue | null {
   if (typeof value === 'object') {
     const obj = value as Record<string, unknown>;
     if (typeof obj.dataUrl === 'string' && typeof obj.mimeType === 'string') {
+      let dataUrl = obj.dataUrl;
+      const mimeType = obj.mimeType;
+
+      // Ensure dataUrl is properly formatted with data URL prefix
+      // If it's raw base64 (doesn't start with "data:"), construct the full data URL
+      if (!dataUrl.startsWith('data:')) {
+        dataUrl = `data:${mimeType};base64,${dataUrl}`;
+      }
+
       return {
-        dataUrl: obj.dataUrl,
-        mimeType: obj.mimeType,
+        dataUrl,
+        mimeType,
         filename: typeof obj.filename === 'string' ? obj.filename : undefined,
       };
     }
