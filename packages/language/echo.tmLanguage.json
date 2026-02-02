@@ -92,34 +92,7 @@
         },
         {
           "name": "keyword.control.end.echo",
-          "match": "\\[END\\s+(IF|FOR|SECTION)\\]"
-        },
-        {
-          "name": "meta.control.for.echo",
-          "begin": "(\\[)(#FOR)\\b",
-          "end": "(\\])",
-          "beginCaptures": {
-            "1": {
-              "name": "punctuation.bracket.open.echo"
-            },
-            "2": {
-              "name": "keyword.control.loop.echo"
-            }
-          },
-          "endCaptures": {
-            "1": {
-              "name": "punctuation.bracket.close.echo"
-            }
-          },
-          "patterns": [
-            {
-              "name": "keyword.control.in.echo",
-              "match": "\\bIN\\b"
-            },
-            {
-              "include": "#variables"
-            }
-          ]
+          "match": "\\[END\\s+(IF|SECTION)\\]"
         },
         {
           "name": "meta.control.section.echo",

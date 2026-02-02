@@ -173,27 +173,7 @@ function generateTextMateGrammar(lang: LangDefinition): TMGrammar {
           // [END IF]
           {
             name: 'keyword.control.end.echo',
-            match: '\\[END\\s+(IF|FOR|SECTION)\\]',
-          },
-          // [#FOR item IN collection]
-          {
-            name: 'meta.control.for.echo',
-            begin: '(\\[)(#FOR)\\b',
-            end: '(\\])',
-            beginCaptures: {
-              '1': { name: 'punctuation.bracket.open.echo' },
-              '2': { name: 'keyword.control.loop.echo' },
-            },
-            endCaptures: {
-              '1': { name: 'punctuation.bracket.close.echo' },
-            },
-            patterns: [
-              {
-                name: 'keyword.control.in.echo',
-                match: '\\bIN\\b',
-              },
-              { include: '#variables' },
-            ],
+            match: '\\[END\\s+(IF|SECTION)\\]',
           },
           // [#SECTION name="..."]
           {
@@ -334,7 +314,7 @@ function generateTextMateGrammar(lang: LangDefinition): TMGrammar {
 // =============================================================================
 
 function generateTypeScriptData(lang: LangDefinition): string {
-  const keywords = ['IF', 'ELSE', 'ELSE IF', 'END IF', 'FOR', 'END FOR', 'IN', 'SECTION', 'END SECTION', 'IMPORT', 'INCLUDE'];
+  const keywords = ['IF', 'ELSE', 'ELSE IF', 'END IF', 'SECTION', 'END SECTION', 'IMPORT', 'INCLUDE'];
 
   const directives: Array<{
     name: string;
@@ -378,12 +358,6 @@ function generateTypeScriptData(lang: LangDefinition): string {
       trigger: '[#IF',
       snippet: '[#IF {{${1:variable}}} #${2|equals,contains,exists,gt,lt|}(${3:value})]\\n$0\\n[END IF]',
       description: 'Conditional block',
-    },
-    {
-      name: 'FOR loop',
-      trigger: '[#FOR',
-      snippet: '[#FOR ${1:item} IN {{${2:collection}}}]\\n$0\\n[END FOR]',
-      description: 'Loop over a collection',
     },
     {
       name: 'SECTION',

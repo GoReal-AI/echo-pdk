@@ -12,9 +12,6 @@ export const KEYWORDS = [
   "ELSE",
   "ELSE IF",
   "END IF",
-  "FOR",
-  "END FOR",
-  "IN",
   "SECTION",
   "END SECTION",
   "IMPORT",
@@ -199,12 +196,6 @@ export const SNIPPETS: SnippetDefinition[] = [
     "trigger": "[#IF",
     "snippet": "[#IF {{${1:variable}}} #${2|equals,contains,exists,gt,lt|}(${3:value})]\\n$0\\n[END IF]",
     "description": "Conditional block"
-  },
-  {
-    "name": "FOR loop",
-    "trigger": "[#FOR",
-    "snippet": "[#FOR ${1:item} IN {{${2:collection}}}]\\n$0\\n[END FOR]",
-    "description": "Loop over a collection"
   },
   {
     "name": "SECTION",
