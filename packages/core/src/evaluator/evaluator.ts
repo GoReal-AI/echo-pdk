@@ -5,9 +5,9 @@
  * The evaluator processes the AST and determines which nodes should be rendered
  * based on the provided context and condition evaluation.
  *
- * KEY OPTIMIZATION: AI JUDGE PARALLELIZATION
+ * KEY OPTIMIZATION: AI GATE PARALLELIZATION
  * Before evaluating the AST, we:
- * 1. Collect ALL #ai_judge conditions from the tree
+ * 1. Collect ALL #ai_gate conditions from the tree
  * 2. Evaluate them in parallel using Promise.all
  * 3. Cache the results
  * 4. Use cached results during tree evaluation
@@ -300,10 +300,10 @@ export async function preEvaluateAiJudges(
       return;
     }
 
-    // Evaluate using the AI judge operator
-    const operator = ctx.operators.get('ai_judge') ?? getOperator('ai_judge');
+    // Evaluate using the AI gate operator (fall back to deprecated ai_judge name)
+    const operator = ctx.operators.get('ai_gate') ?? ctx.operators.get('ai_judge') ?? getOperator('ai_gate') ?? getOperator('ai_judge');
     if (!operator) {
-      throw new Error('AI Judge operator not available');
+      throw new Error('AI gate operator not available. Configure aiProvider in createEcho().');
     }
 
     try {

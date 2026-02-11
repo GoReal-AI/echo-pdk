@@ -74,14 +74,26 @@ export interface ContextFolder {
 }
 
 /**
- * PLACEHOLDER: Testing folder for evaluation files
- * Future: Will contain .eval files for prompt testing
+ * Eval folder containing test files and datasets.
+ *
+ * Structure:
+ * ```
+ * eval/
+ *   tests/
+ *     smoke.eval
+ *     quality.eval
+ *   datasets/
+ *     family-scenarios.dset
+ *     regression.dset
+ * ```
  */
 export interface TestingFolder {
   /** Folder path relative to project root */
   path: string;
-  /** List of evaluation file names */
-  files: string[];
+  /** List of .eval test file names (in eval/tests/) */
+  evalFiles: string[];
+  /** List of .dset dataset file names (in eval/datasets/) */
+  datasetFiles: string[];
 }
 
 // =============================================================================
@@ -197,4 +209,7 @@ export const PROJECT_FILE_NAMES = {
   meta: 'meta.yaml',
   contextDir: 'context',
   testingDir: 'testing',
+  evalDir: 'eval',
+  evalTestsDir: 'eval/tests',
+  evalDatasetsDir: 'eval/datasets',
 } as const;

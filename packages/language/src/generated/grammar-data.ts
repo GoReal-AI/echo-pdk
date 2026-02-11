@@ -168,12 +168,22 @@ export const OPERATORS: OperatorDefinition[] = [
     }
   },
   {
-    "name": "ai_judge",
+    "name": "ai_gate",
     "type": "ai",
-    "description": "LLM-evaluated boolean condition",
-    "example": "{{content}} #ai_judge(Is this appropriate for children?)",
+    "description": "LLM-evaluated boolean condition — gates content based on an AI yes/no answer",
+    "example": "{{content}} #ai_gate(Is this appropriate for children?)",
     "autocomplete": {
       "trigger": "#ai",
+      "snippet": "#ai_gate($1)"
+    }
+  },
+  {
+    "name": "ai_judge",
+    "type": "ai",
+    "description": "Deprecated: use #ai_gate instead",
+    "example": "{{content}} #ai_judge(Is this appropriate for children?)",
+    "autocomplete": {
+      "trigger": "#ai_j",
       "snippet": "#ai_judge($1)"
     }
   }
@@ -194,7 +204,7 @@ export const SNIPPETS: SnippetDefinition[] = [
   {
     "name": "IF block",
     "trigger": "[#IF",
-    "snippet": "[#IF {{${1:variable}}} #${2|equals,contains,exists,gt,lt|}(${3:value})]\\n$0\\n[END IF]",
+    "snippet": "[#IF {{${1:variable}}} #${2:exists}]\\n$0\\n[END IF]",
     "description": "Conditional block"
   },
   {

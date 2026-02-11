@@ -38,7 +38,7 @@
     },
     "ai": {
       "type": "object",
-      "description": "AI provider configuration for #ai_judge",
+      "description": "AI provider configuration for #ai_gate",
       "properties": {
         "provider": {
           "type": "string",

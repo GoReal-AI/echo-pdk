@@ -10,7 +10,7 @@ This guide covers everything you need to use Echo PDK effectively, from basic te
 - [Conditionals](#conditionals)
 - [Operators](#operators)
 - [Sections & Includes](#sections--includes)
-- [AI Judge](#ai-judge)
+- [AI Gate](#ai-gate)
 - [Custom Operators](#custom-operators)
 - [Plugins](#plugins)
 - [Error Handling](#error-handling)
@@ -261,7 +261,7 @@ Operators evaluate conditions in `[#IF]` blocks. Echo provides **readable names*
 
 | Operator | Description | Example |
 |----------|-------------|---------|
-| `#ai_judge(question)` | LLM-evaluated boolean | `{{content}} #ai_judge(Is this safe?)` |
+| `#ai_gate(question)` | LLM-evaluated boolean | `{{content}} #ai_gate(Is this safe?)` |
 
 ### Examples
 
@@ -385,9 +385,11 @@ User question: {{query}}
 
 ---
 
-## AI Judge
+## AI Gate
 
-AI Judge (`#ai_judge`) uses an LLM to evaluate complex boolean conditions that can't be expressed with simple operators.
+AI Gate (`#ai_gate`) uses an LLM to evaluate complex boolean conditions that can't be expressed with simple operators.
+
+> **Note:** `#ai_judge` is supported as a deprecated alias for `#ai_gate` and will continue to work.
 
 ### Configuration
 
@@ -414,7 +416,7 @@ export ECHO_API_KEY=sk-...
 ### Usage
 
 ```
-[#IF {{user_message}} #ai_judge("Is this message asking for harmful information?")]
+[#IF {{user_message}} #ai_gate("Is this message asking for harmful information?")]
 I'm sorry, but I can't help with that request.
 [ELSE]
 {{generated_response}}
@@ -425,7 +427,7 @@ I'm sorry, but I can't help with that request.
 
 **Content Moderation:**
 ```
-[#IF {{content}} #ai_judge("Does this contain profanity or hate speech?")]
+[#IF {{content}} #ai_gate("Does this contain profanity or hate speech?")]
 This content has been flagged for review.
 [ELSE]
 {{content}}
@@ -434,9 +436,9 @@ This content has been flagged for review.
 
 **Sentiment-Based Routing:**
 ```
-[#IF {{customer_message}} #ai_judge("Is this customer expressing frustration or anger?")]
+[#IF {{customer_message}} #ai_gate("Is this customer expressing frustration or anger?")]
 [#INCLUDE empathetic_response_template]
-[ELSE IF {{customer_message}} #ai_judge("Is this a technical question?")]
+[ELSE IF {{customer_message}} #ai_gate("Is this a technical question?")]
 [#INCLUDE technical_support_template]
 [ELSE]
 [#INCLUDE general_response_template]
@@ -445,7 +447,7 @@ This content has been flagged for review.
 
 **Age-Appropriate Content:**
 ```
-[#IF {{story_content}} #ai_judge("Is this content appropriate for children under 13?")]
+[#IF {{story_content}} #ai_gate("Is this content appropriate for children under 13?")]
 {{story_content}}
 [ELSE]
 This content is not available for your age group.
@@ -454,12 +456,12 @@ This content is not available for your age group.
 
 ### Performance Note
 
-AI Judge conditions are automatically:
+AI Gate conditions are automatically:
 1. **Collected** from the entire template before evaluation
 2. **Evaluated in parallel** using `Promise.all()`
 3. **Cached** for 5 minutes (same value + question = cached result)
 
-This means multiple AI Judge conditions don't block each other sequentially.
+This means multiple AI Gate conditions don't block each other sequentially.
 
 ---
 
@@ -654,7 +656,7 @@ try {
   } else if (error.message.includes('Unknown operator')) {
     // Using an unregistered operator
     console.error('Unknown operator:', error.message);
-  } else if (error.message.includes('AI Judge')) {
+  } else if (error.message.includes('AI gate')) {
     // AI provider error
     console.error('AI evaluation failed:', error.message);
   } else {

@@ -126,7 +126,7 @@ Echo provides readable names for low-coders and short aliases for developers.
 | `#greater_than(n)` | `#gt` | Greater than |
 | `#less_than(n)` | `#lt` | Less than |
 | `#one_of(a,b,c)` | `#in` | Value in list |
-| `#ai_judge(question)` | - | LLM-evaluated condition |
+| `#ai_gate(question)` | - | LLM-evaluated condition |
 
 ### Composition
 ```

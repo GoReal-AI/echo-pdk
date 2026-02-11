@@ -195,7 +195,7 @@
       "patterns": [
         {
           "name": "keyword.operator.echo",
-          "match": "#(equals|contains|matches|in|gt|gte|lt|lte|exists|ai_judge)\\b"
+          "match": "#(equals|contains|matches|in|gt|gte|lt|lte|exists|ai_gate|ai_judge)\\b"
         },
         {
           "name": "punctuation.paren.open.echo",

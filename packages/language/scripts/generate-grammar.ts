@@ -356,7 +356,7 @@ function generateTypeScriptData(lang: LangDefinition): string {
     {
       name: 'IF block',
       trigger: '[#IF',
-      snippet: '[#IF {{${1:variable}}} #${2|equals,contains,exists,gt,lt|}(${3:value})]\\n$0\\n[END IF]',
+      snippet: '[#IF {{${1:variable}}} #${2:exists}]\\n$0\\n[END IF]',
       description: 'Conditional block',
     },
     {

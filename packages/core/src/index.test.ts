@@ -475,7 +475,7 @@ Line 2`;
   });
 });
 
-describe('AI Judge operator', () => {
+describe('AI gate operator (#ai_gate)', () => {
   let originalEnv: NodeJS.ProcessEnv;
 
   beforeEach(() => {
@@ -492,11 +492,8 @@ describe('AI Judge operator', () => {
 
     const echo = createEcho();
 
-    // AI Judge is always registered (validation passes)
-    // Note: quoted string arguments are required for strings with spaces
-    const result = echo.validate('[#IF {{x}} #ai_judge("Is this good?")]yes[END IF]');
+    const result = echo.validate('[#IF {{x}} #ai_gate("Is this good?")]yes[END IF]');
 
-    // Should NOT warn about unknown operator - ai_judge is registered
     expect(result.warnings.some((w) => w.code === 'UNKNOWN_OPERATOR')).toBe(false);
     expect(result.valid).toBe(true);
   });
@@ -505,20 +502,55 @@ describe('AI Judge operator', () => {
     delete process.env.OPENAI_API_KEY;
     delete process.env.ECHO_API_KEY;
 
-    // Use strict mode to get errors thrown instead of swallowed
     const echo = createEcho({ strict: true });
 
-    // At runtime, ai_judge will throw because no provider is configured
     await expect(
-      echo.render('[#IF {{x}} #ai_judge("Is this good?")]yes[END IF]', { x: 'test' })
-    ).rejects.toThrow('AI Judge not implemented');
+      echo.render('[#IF {{x}} #ai_gate("Is this good?")]yes[END IF]', { x: 'test' })
+    ).rejects.toThrow('AI gate not configured');
   });
 
-  it('should treat ai_judge as false in lenient mode without API key', async () => {
+  it('should treat ai_gate as false in lenient mode without API key', async () => {
     delete process.env.OPENAI_API_KEY;
     delete process.env.ECHO_API_KEY;
 
-    // Lenient mode (default) swallows errors and treats condition as false
+    const echo = createEcho();
+
+    const result = await echo.render(
+      '[#IF {{x}} #ai_gate("Is this good?")]yes[ELSE]no[END IF]',
+      { x: 'test' }
+    );
+
+    expect(result).toBe('no');
+  });
+});
+
+describe('Deprecated #ai_judge backward compatibility', () => {
+  let originalEnv: NodeJS.ProcessEnv;
+
+  beforeEach(() => {
+    originalEnv = { ...process.env };
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+  });
+
+  it('should still register ai_judge as a known operator', () => {
+    delete process.env.OPENAI_API_KEY;
+    delete process.env.ECHO_API_KEY;
+
+    const echo = createEcho();
+
+    const result = echo.validate('[#IF {{x}} #ai_judge("Is this good?")]yes[END IF]');
+
+    expect(result.warnings.some((w) => w.code === 'UNKNOWN_OPERATOR')).toBe(false);
+    expect(result.valid).toBe(true);
+  });
+
+  it('should treat deprecated ai_judge as false in lenient mode without API key', async () => {
+    delete process.env.OPENAI_API_KEY;
+    delete process.env.ECHO_API_KEY;
+
     const echo = createEcho();
 
     const result = await echo.render(
@@ -526,7 +558,6 @@ describe('AI Judge operator', () => {
       { x: 'test' }
     );
 
-    // ai_judge fails but error is swallowed, condition is false, ELSE branch taken
     expect(result).toBe('no');
   });
 });

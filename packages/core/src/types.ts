@@ -98,11 +98,11 @@ export interface VariableNode extends BaseNode {
 export interface ConditionExpr {
   /** The variable being tested */
   variable: string;
-  /** The operator name, e.g., 'equals', 'contains', 'ai_judge' */
+  /** The operator name, e.g., 'equals', 'contains', 'ai_gate' */
   operator: string;
   /** The argument to the operator (if any) */
   argument?: string | number | string[];
-  /** Flag for optimization: true if this is an AI judge condition */
+  /** Flag for optimization: true for `#ai_gate` (or deprecated `#ai_judge`) conditions */
   isAiJudge: boolean;
 }
 
@@ -226,11 +226,11 @@ export interface OperatorDefinition {
 // =============================================================================
 
 /**
- * AI provider configuration for #ai_judge operator.
+ * AI provider configuration for `#ai_gate` operator.
  */
 export interface AIProviderConfig {
   /** The provider type */
-  type: 'openai' | 'anthropic';
+  type: import('./providers/types.js').ProviderType;
   /** API key (can also be set via ECHO_AI_API_KEY env var) */
   apiKey: string;
   /** Model to use (defaults to provider's default) */
@@ -285,7 +285,7 @@ export interface PlpConfig {
 export interface EchoConfig {
   /** Strict mode: fail on errors vs warn and continue */
   strict?: boolean;
-  /** AI provider configuration for #ai_judge */
+  /** AI provider configuration for `#ai_gate` */
   aiProvider?: AIProviderConfig;
   /** PLP configuration for automatic context resolution */
   plp?: PlpConfig;

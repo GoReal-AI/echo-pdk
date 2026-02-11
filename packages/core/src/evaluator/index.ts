@@ -27,5 +27,6 @@ export {
   ltOperator,
   lteOperator,
   inOperator,
+  aiGateOperator,
   aiJudgeOperator,
 } from './operators.js';
