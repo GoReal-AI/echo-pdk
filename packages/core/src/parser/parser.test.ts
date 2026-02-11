@@ -130,8 +130,17 @@ describe('parser', () => {
       }
     });
 
-    it('should detect ai_judge conditions', () => {
-      // Note: String arguments with spaces must be quoted
+    it('should detect ai_gate conditions', () => {
+      const result = parse('[#IF {{content}} #ai_gate("Is this safe?")]safe[END IF]');
+      expect(result.success).toBe(true);
+      if (result.ast?.[0].type === 'conditional') {
+        expect(result.ast[0].condition.operator).toBe('ai_gate');
+        expect(result.ast[0].condition.isAiJudge).toBe(true);
+        expect(result.ast[0].condition.argument).toBe('Is this safe?');
+      }
+    });
+
+    it('should still detect deprecated ai_judge conditions', () => {
       const result = parse('[#IF {{content}} #ai_judge("Is this safe?")]safe[END IF]');
       expect(result.success).toBe(true);
       if (result.ast?.[0].type === 'conditional') {

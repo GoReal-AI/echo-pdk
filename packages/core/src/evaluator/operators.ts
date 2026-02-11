@@ -19,7 +19,7 @@
  * - #gt(n), #lt(n)     - Greater than, less than
  * - #gte(n), #lte(n)   - Greater/less than or equal
  * - #in(a,b,c)         - Value is in list
- * - #ai_judge(question) - LLM-evaluated condition
+ * - #ai_gate(question)  - LLM-evaluated condition (formerly #ai_judge)
  */
 
 import type { OperatorDefinition } from '../types.js';
@@ -254,45 +254,35 @@ export const inOperator: OperatorDefinition = {
 // =============================================================================
 
 /**
- * #ai_judge - LLM-evaluated boolean condition
+ * #ai_gate - LLM-evaluated boolean condition
  *
- * This operator queries an LLM to evaluate a boolean condition.
- * It's async and results are cached for performance.
+ * Gates content based on an LLM's yes/no answer to a question about a value.
+ * Async — results are pre-evaluated in parallel before AST evaluation.
  *
- * @example {{content}} #ai_judge(Is this appropriate for children?)
+ * @example {{content}} #ai_gate(Is this appropriate for children?)
  */
-export const aiJudgeOperator: OperatorDefinition = {
+export const aiGateOperator: OperatorDefinition = {
   type: 'ai',
   description: 'LLM-evaluated boolean condition',
-  example: '{{content}} #ai_judge(Is this appropriate for children?)',
+  example: '{{content}} #ai_gate(Is this appropriate for children?)',
   autocomplete: {
     trigger: '#ai',
-    snippet: '#ai_judge($1)',
+    snippet: '#ai_gate($1)',
   },
   handler: async (_value: unknown, _question: unknown): Promise<boolean> => {
-    // TODO: Implement AI judge
-    //
-    // IMPLEMENTATION STEPS:
-    // 1. Get the AI provider from context (passed via closure or config)
-    // 2. Construct prompt asking for yes/no answer
-    // 3. Call the AI provider
-    // 4. Parse response as boolean
-    // 5. Cache result for identical value+question combinations
-    //
-    // PROMPT TEMPLATE:
-    // "Given the following value: {value}
-    //  Answer this question with only 'yes' or 'no':
-    //  {question}"
-    //
-    // CACHING:
-    // Cache key = hash(value + question)
-    // Cache should be per-render to avoid stale data across renders
-
+    // Placeholder — the real handler is injected by setupAiGateOperator()
+    // in index.ts when an aiProvider is configured. This fallback throws
+    // so users get a clear error if they forget to configure a provider.
     throw new Error(
-      'AI Judge not implemented. Configure aiProvider in EchoConfig.'
+      'AI gate not configured. Set aiProvider in createEcho() config.'
     );
   },
 };
+
+/**
+ * @deprecated Use `#ai_gate` instead. `#ai_judge` will be removed in a future version.
+ */
+export const aiJudgeOperator: OperatorDefinition = aiGateOperator;
 
 // =============================================================================
 // OPERATOR REGISTRY
@@ -317,7 +307,11 @@ export const builtinOperators: Record<string, OperatorDefinition> = {
   less_than: ltOperator,
   less_than_or_equal: lteOperator,
   one_of: inOperator,
-  ai_judge: aiJudgeOperator,
+  ai_gate: aiGateOperator,
+
+  // Deprecated — kept for backward compatibility
+  /** @deprecated Use `ai_gate` instead */
+  ai_judge: aiGateOperator,
 
   // Short aliases for developers
   gt: gtOperator,
@@ -355,14 +349,14 @@ export function isAsyncOperator(name: string): boolean {
 /*
 NEXT STEPS TO IMPLEMENT:
 
-1. AI JUDGE IMPLEMENTATION
-   - Create ai-judge/provider.ts for AI provider abstraction
-   - Implement OpenAI adapter
-   - Add caching layer
-   - Handle timeouts and errors gracefully
+1. AI GATE IMPLEMENTATION (done)
+   - Unified provider system in providers/ module
+   - OpenAI + Anthropic adapters
+   - Caching layer in ai-judge/index.ts
+   - Graceful error handling with lenient mode fallback
 
 2. OPERATOR CONTEXT
-   The ai_judge operator needs access to the AI provider.
+   The ai_gate operator needs access to the AI provider.
    Options:
    - Pass context as third argument to handler
    - Use closure to capture config

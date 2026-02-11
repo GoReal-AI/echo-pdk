@@ -160,6 +160,51 @@ var echoPdk = {
       valid: parseResult.success,
       errors: parseResult.errors || []
     };
+  },
+
+  /**
+   * Check if a string is a valid provider type.
+   * @param {string} value - String to check
+   * @returns {boolean} - true if value is a known provider type
+   */
+  isProviderType: function(value) {
+    return EchoPDK.isProviderType(value);
+  },
+
+  /**
+   * Get metadata for all known AI providers.
+   * @returns {Array} - Array of provider info objects
+   */
+  getProviders: function() {
+    return EchoPDK.getProviders();
+  },
+
+  /**
+   * List available models for a provider (async, returns a Promise).
+   * @param {string} type - Provider type ('openai' or 'anthropic')
+   * @param {string} apiKey - API key for authentication
+   * @returns {Promise<Array>} - Array of model info objects
+   */
+  listModels: function(type, apiKey) {
+    return EchoPDK.listModels(type, apiKey);
+  },
+
+  /**
+   * Create an AI provider instance.
+   * @param {Object} config - { type, apiKey, model?, baseUrl?, timeout? }
+   * @returns {Object} - Provider instance with complete(), listModels(), judge(), similarity()
+   */
+  createProvider: function(config) {
+    return EchoPDK.createProvider(config);
+  },
+
+  /**
+   * Render a template and send to an LLM in one call (async, returns a Promise).
+   * @param {Object} options - { template, variables, provider, systemMessage? }
+   * @returns {Promise<Object>} - { renderedPrompt, response }
+   */
+  runPrompt: function(options) {
+    return EchoPDK.runPrompt(options);
   }
 };
 `;

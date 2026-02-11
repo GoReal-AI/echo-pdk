@@ -106,7 +106,7 @@ export function createConditionExpr(
     variable,
     operator,
     argument,
-    isAiJudge: operator === 'ai_judge',
+    isAiJudge: operator === 'ai_gate' || operator === 'ai_judge',
   };
 }
 

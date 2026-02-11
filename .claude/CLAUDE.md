@@ -27,10 +27,10 @@ This is a **pnpm monorepo** using **Turborepo** for build orchestration.
 ```
 Template (.echo) → Lexer → Parser → AST → Evaluator → Renderer → Output (string)
                                          ↑
-                                   AI Judge (parallel)
+                                   AI Gate (parallel)
 ```
 
-**Key Innovation:** AI Judge conditions (`#ai_judge`) are collected and evaluated in parallel before AST evaluation, preventing sequential blocking.
+**Key Innovation:** AI Gate conditions (`#ai_gate`) are collected and evaluated in parallel before AST evaluation, preventing sequential blocking.
 
 ## Development Commands
 
@@ -128,7 +128,7 @@ Operators have readable names for low-coders and short aliases for developers.
 | `#less_than(n)` | `#lt` | comparison | Less than |
 | `#less_than_or_equal(n)` | `#lte` | comparison | Less than or equal |
 | `#one_of(a,b,c)` | `#in` | comparison | Value in list |
-| `#ai_judge(q)` | - | ai | LLM-evaluated boolean |
+| `#ai_gate(q)` | `#ai_judge` | ai | LLM-evaluated boolean |
 
 ### Composition
 ```
@@ -199,7 +199,7 @@ Did you mean: #equals, #contains, #exists?
 - [ ] Basic CLI (render, validate)
 
 ### Phase 2 - Planned
-- [ ] AI Judge with parallel optimization
+- [ ] AI Gate with parallel optimization
 - [ ] Import/Include support
 - [ ] Section definitions
 - [ ] Caching layer

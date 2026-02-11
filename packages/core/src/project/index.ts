@@ -370,11 +370,18 @@ export function getProjectFiles(
     }
   }
 
-  // Testing files (placeholder)
+  // Eval files
   if (project.testing) {
-    for (const file of project.testing.files) {
+    for (const file of project.testing.evalFiles) {
       files.push({
-        path: `${project.root}/${project.testing.path}/${file}`,
+        path: `${project.root}/${project.testing.path}/tests/${file}`,
+        name: file,
+        type: 'testing',
+      });
+    }
+    for (const file of project.testing.datasetFiles) {
+      files.push({
+        path: `${project.root}/${project.testing.path}/datasets/${file}`,
         name: file,
         type: 'testing',
       });

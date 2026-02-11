@@ -1,6 +1,6 @@
 {
   "name": "@goreal-ai/echo-pdk",
-  "version": "0.7.1",
+  "version": "0.8.0",
   "description": "Echo PDK core rendering engine - parser, evaluator, and renderer",
   "type": "module",
   "main": "./dist/index.js",
@@ -13,6 +13,10 @@
     "./project": {
       "types": "./dist/project/index.d.ts",
       "import": "./dist/project/index.js"
+    },
+    "./providers": {
+      "types": "./dist/providers/index.d.ts",
+      "import": "./dist/providers/index.js"
     }
   },
   "files": [
@@ -46,13 +50,9 @@
     "yaml": "^2.3.0"
   },
   "peerDependencies": {
-    "@goreal-ai/plp-client": "^1.2.0",
-    "openai": "^4.0.0"
+    "@goreal-ai/plp-client": "^1.2.0"
   },
   "peerDependenciesMeta": {
-    "openai": {
-      "optional": true
-    },
     "@goreal-ai/plp-client": {
       "optional": true
     }
@@ -60,7 +60,6 @@
   "devDependencies": {
     "@types/node": "^20.10.0",
     "esbuild": "^0.27.2",
-    "openai": "^4.0.0",
     "typescript": "^5.3.0",
     "vitest": "^2.0.0"
   },

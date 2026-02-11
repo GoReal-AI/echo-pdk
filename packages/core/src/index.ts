@@ -75,7 +75,7 @@ import { parse } from './parser/parser.js';
 import { evaluate } from './evaluator/index.js';
 import { render, renderMultimodal, formatErrors } from './renderer/renderer.js';
 import { builtinOperators, getOperator } from './evaluator/index.js';
-import { createOpenAIProvider, withCache } from './ai-judge/index.js';
+import { createAIJudgeProvider, withCache } from './ai-judge/index.js';
 import {
   validateContextPath,
   collectContextPaths,
@@ -209,7 +209,7 @@ async function resolveContextNodes(
  * - Conditionals: [#IF {{var}} #operator(arg)]...[END IF]
  * - Sections: [#SECTION name="x"]...[END SECTION]
  * - Includes: [#INCLUDE section_name]
- * - AI-powered conditions: #ai_judge(question)
+ * - AI-powered conditions: #ai_gate(question)
  *
  * @param config - Configuration options for the Echo instance
  * @returns A configured Echo instance
@@ -234,7 +234,7 @@ async function resolveContextNodes(
  * });
  *
  * const template = `
- * [#IF {{content}} #ai_judge(Is this appropriate for children?)]
+ * [#IF {{content}} #ai_gate(Is this appropriate for children?)]
  *   Safe content: {{content}}
  * [ELSE]
  *   Content flagged for review.
@@ -270,8 +270,8 @@ export function createEcho(config: EchoConfig = {}): Echo {
     operators.set(name, definition);
   }
 
-  // Set up AI Judge operator if provider is configured
-  setupAiJudgeOperator(config, operators);
+  // Set up AI gate operator if provider is configured
+  setupAiGateOperator(config, operators);
 
   // Set up PLP resolver if plp config is provided and no custom resolver
   if (config.plp && !config.contextResolver) {
@@ -459,9 +459,12 @@ export function createEcho(config: EchoConfig = {}): Echo {
 }
 
 /**
- * Set up the AI Judge operator with the configured provider.
+ * Set up the AI gate operator with the configured provider.
+ *
+ * Registers the handler under both `ai_gate` (primary) and `ai_judge`
+ * (deprecated alias) so existing templates continue to work.
  */
-function setupAiJudgeOperator(
+function setupAiGateOperator(
   config: EchoConfig,
   operators: Map<string, OperatorDefinition>
 ): void {
@@ -472,24 +475,20 @@ function setupAiJudgeOperator(
     process.env[ENV_API_KEY];
 
   if (!apiKey) {
-    // No API key - AI Judge will throw when used
+    // No API key — ai_gate will throw when used
     return;
   }
 
   // Create the provider based on type
   const providerType = config.aiProvider?.type ?? 'openai';
 
-  if (providerType !== 'openai') {
-    console.warn(`AI provider type '${providerType}' not yet supported. Using OpenAI.`);
-  }
-
   try {
     // Resolve the model (default to gpt-4o-mini)
     const model = config.aiProvider?.model ?? 'gpt-4o-mini';
 
-    // Create OpenAI provider with caching
-    const provider = createOpenAIProvider({
-      type: 'openai',
+    // Create AI gate provider with caching (supports all provider types)
+    const provider = createAIJudgeProvider({
+      type: providerType,
       apiKey,
       model,
       timeout: config.aiProvider?.timeout,
@@ -501,20 +500,23 @@ function setupAiJudgeOperator(
       model,
     });
 
-    // Register the AI Judge operator with the provider
-    operators.set('ai_judge', {
+    const operatorDef: OperatorDefinition = {
       type: 'ai',
       description: 'LLM-evaluated boolean condition',
-      example: '{{content}} #ai_judge(Is this appropriate?)',
+      example: '{{content}} #ai_gate(Is this appropriate?)',
       handler: async (value: unknown, question: unknown): Promise<boolean> => {
         if (typeof question !== 'string') {
-          throw new Error('AI Judge requires a question string as argument');
+          throw new Error('#ai_gate requires a question string as argument');
         }
         return cachedProvider.evaluate(value, question);
       },
-    });
+    };
+
+    // Register under both names (ai_judge kept for backward compatibility)
+    operators.set('ai_gate', operatorDef);
+    operators.set('ai_judge', operatorDef);
   } catch (error) {
-    // Provider creation failed - AI Judge will throw when used
+    // Provider creation failed — ai_gate will throw when used
     console.warn('Failed to create AI provider:', error);
   }
 }
@@ -681,6 +683,54 @@ export function definePlugin(plugin: EchoPlugin): EchoPlugin {
 }
 
 // =============================================================================
+// EVAL MODULE
+// =============================================================================
+
+// Re-export eval types
+export type {
+  EvalSuite,
+  EvalSuiteConfig,
+  EvalTest,
+  Assertion,
+  AssertionOperator,
+  EvalDataset,
+  EvalGolden,
+  EvalParameterSet,
+  EvalSuiteResult,
+  EvalTestResult,
+  AssertionResult as EvalAssertionResult,
+  EvalSummary,
+  EvalStatus,
+  EvalRunnerConfig,
+  LLMProvider,
+  LLMResponse,
+  AssertionContext,
+} from './eval/index.js';
+
+// Re-export eval functions
+export {
+  // Loader
+  loadEvalFile,
+  parseEvalContent,
+  loadDatasetFile,
+  parseDatasetContent,
+  EvalLoadError,
+  // Assertions
+  runAssertion,
+  runAssertions,
+  // Dataset
+  DatasetManager,
+  // Runner
+  runEvalFile,
+  runEvalSuite,
+  // Reporter
+  formatConsole,
+  formatJson,
+  formatJunit,
+  formatResults,
+} from './eval/index.js';
+
+// =============================================================================
 // PROJECT MODULE
 // =============================================================================
 
@@ -716,3 +766,34 @@ export {
   DEFAULT_PROMPT_CONTENT,
   PROJECT_FILE_NAMES,
 } from './project/index.js';
+
+// =============================================================================
+// PROVIDERS MODULE
+// =============================================================================
+
+// Re-export provider types
+export type {
+  ProviderType,
+  ProviderInfo,
+  ProviderConfig,
+  ModelInfo,
+  ChatMessage,
+  CompletionResponse,
+  CompletionOptions,
+  AIProviderInstance,
+  RunPromptOptions,
+  RunPromptResult,
+} from './providers/index.js';
+
+// Re-export provider functions
+export {
+  isProviderType,
+  getProviders,
+  getProvider,
+  createProvider,
+  listModels,
+  createOpenAIProvider,
+  createAnthropicProvider,
+  runPrompt,
+  toLLMProvider,
+} from './providers/index.js';

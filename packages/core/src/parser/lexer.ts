@@ -216,7 +216,7 @@ export const CloseBracket = createToken({
 });
 
 /**
- * Operator - #equals, #contains, #ai_judge, etc.
+ * Operator - #equals, #contains, #ai_gate, etc.
  */
 export const Operator = createToken({
   name: 'Operator',

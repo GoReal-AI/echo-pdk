@@ -1,8 +1,8 @@
 /**
- * @fileoverview AI Judge - LLM-based condition evaluation
+ * @fileoverview AI Gate - LLM-based condition evaluation
  *
- * This module handles the #ai_judge operator which queries an LLM
- * to evaluate boolean conditions.
+ * This module handles the #ai_gate operator (and deprecated #ai_judge alias)
+ * which queries an LLM to evaluate boolean conditions.
  *
  * FEATURES:
  * - Provider abstraction for different backends (OpenAI, Anthropic)
@@ -19,6 +19,7 @@
 
 import { createHash } from 'crypto';
 import type { AIProviderConfig } from '../types.js';
+import { createProvider } from '../providers/registry.js';
 
 // =============================================================================
 // TYPES
@@ -46,100 +47,58 @@ interface CacheEntry {
   timestamp: number;
 }
 
-/**
- * OpenAI chat completion message.
- */
-interface ChatMessage {
-  role: 'system' | 'user' | 'assistant';
-  content: string;
-}
-
-/**
- * OpenAI chat completion response (minimal type for our needs).
- */
-interface ChatCompletionResponse {
-  choices: Array<{
-    message: {
-      content: string | null;
-    };
-  }>;
-}
-
 // =============================================================================
-// OPENAI PROVIDER
+// AI JUDGE PROVIDER (delegates to unified provider system)
 // =============================================================================
 
 /**
- * Create an OpenAI-based AI provider.
+ * Create an AI provider for the AI Judge operator.
+ * Delegates to the unified provider system from providers/registry.
  *
  * @param config - Configuration with API key and model
- * @returns AIProvider using OpenAI
- *
- * @example
- * ```typescript
- * const provider = createOpenAIProvider({
- *   type: 'openai',
- *   apiKey: process.env.OPENAI_API_KEY,
- *   model: 'gpt-4o-mini',
- * });
- *
- * const result = await provider.evaluate(
- *   'This is a family-friendly movie.',
- *   'Is this content appropriate for children?'
- * );
- * ```
+ * @returns AIProvider for boolean evaluation
  */
-export function createOpenAIProvider(config: AIProviderConfig): AIProvider {
-  const apiKey = config.apiKey;
+export function createAIJudgeProvider(config: AIProviderConfig): AIProvider {
+  const providerType = config.type ?? 'openai';
   const model = config.model ?? 'gpt-4o-mini';
-  const timeout = config.timeout ?? 30000;
 
-  if (!apiKey) {
-    throw new Error(
-      'OpenAI API key is required. Set OPENAI_API_KEY environment variable or pass it in config.'
-    );
-  }
+  const instance = createProvider({
+    type: providerType,
+    apiKey: config.apiKey,
+    model,
+    timeout: config.timeout,
+  });
 
   return {
     async evaluate(value: unknown, question: string): Promise<boolean> {
       const prompt = buildPrompt(value, question);
 
-      const messages: ChatMessage[] = [
-        {
-          role: 'system',
-          content:
-            'You are a precise yes/no evaluator. Answer ONLY with "yes" or "no" (lowercase, no punctuation). Do not explain or elaborate.',
-        },
-        {
-          role: 'user',
-          content: prompt,
-        },
-      ];
-
       try {
-        const response = await callOpenAI(apiKey, model, messages, timeout);
-        const answer = response.choices[0]?.message?.content?.trim().toLowerCase();
+        const response = await instance.complete(
+          [
+            {
+              role: 'system',
+              content:
+                'You are a precise yes/no evaluator. Answer ONLY with "yes" or "no" (lowercase, no punctuation). Do not explain or elaborate.',
+            },
+            {
+              role: 'user',
+              content: prompt,
+            },
+          ],
+          { model, temperature: 0, maxTokens: 10 }
+        );
 
-        if (answer === 'yes') {
-          return true;
-        }
-        if (answer === 'no') {
-          return false;
-        }
+        const answer = response.text.trim().toLowerCase();
 
-        // Unexpected response - try to interpret
-        if (answer?.includes('yes')) {
-          return true;
-        }
-        if (answer?.includes('no')) {
-          return false;
-        }
+        if (answer === 'yes') return true;
+        if (answer === 'no') return false;
+        if (answer.includes('yes')) return true;
+        if (answer.includes('no')) return false;
 
-        // Default to false for ambiguous responses
         console.warn(`AI Judge returned unexpected response: "${answer}". Defaulting to false.`);
         return false;
       } catch (error) {
-        // Re-throw with more context
         if (error instanceof Error) {
           throw new Error(`AI Judge evaluation failed: ${error.message}`);
         }
@@ -147,45 +106,6 @@ export function createOpenAIProvider(config: AIProviderConfig): AIProvider {
       }
     },
   };
-}
-
-/**
- * Call the OpenAI Chat Completions API.
- */
-async function callOpenAI(
-  apiKey: string,
-  model: string,
-  messages: ChatMessage[],
-  timeout: number
-): Promise<ChatCompletionResponse> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeout);
-
-  try {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model,
-        messages,
-        max_tokens: 10,
-        temperature: 0, // Deterministic responses
-      }),
-      signal: controller.signal,
-    });
-
-    if (!response.ok) {
-      const errorBody = await response.text();
-      throw new Error(`OpenAI API error (${response.status}): ${errorBody}`);
-    }
-
-    return (await response.json()) as ChatCompletionResponse;
-  } finally {
-    clearTimeout(timeoutId);
-  }
 }
 
 /**
@@ -230,19 +150,7 @@ ${question}`;
  * ```
  */
 export function createAIJudge(config: AIProviderConfig): AIProvider {
-  switch (config.type) {
-    case 'openai':
-      return createOpenAIProvider(config);
-
-    case 'anthropic':
-      // TODO: Implement Anthropic provider
-      throw new Error(
-        'Anthropic provider not yet implemented. Use OpenAI for now.'
-      );
-
-    default:
-      throw new Error(`Unknown AI provider type: ${config.type}`);
-  }
+  return createAIJudgeProvider(config);
 }
 
 // =============================================================================
@@ -368,7 +276,10 @@ export interface WithCacheOptions {
  *
  * @example
  * ```typescript
- * const provider = createOpenAIProvider(config);
+ * const provider = createAIJudge({
+ *   type: 'openai',
+ *   apiKey: process.env.OPENAI_API_KEY!,
+ * });
  * const cachedProvider = withCache(provider, {
  *   providerType: 'openai',
  *   model: 'gpt-4o-mini',

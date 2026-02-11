@@ -220,7 +220,11 @@ describe('getOperator', () => {
 });
 
 describe('isAsyncOperator', () => {
-  it('should return true for ai_judge operator', () => {
+  it('should return true for ai_gate operator', () => {
+    expect(isAsyncOperator('ai_gate')).toBe(true);
+  });
+
+  it('should return true for deprecated ai_judge operator', () => {
     expect(isAsyncOperator('ai_judge')).toBe(true);
   });
 

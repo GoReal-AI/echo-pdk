@@ -194,17 +194,27 @@ operators:
       snippet: "#exists"
 
   # AI operators
-  ai_judge:
+  ai_gate:
     type: ai
     signature: "(question: string) => boolean"
-    description: "LLM-evaluated boolean condition"
-    example: "{{content}} #ai_judge(Is this appropriate for children?)"
+    description: "LLM-evaluated boolean condition — gates content based on an AI yes/no answer"
+    example: "{{content}} #ai_gate(Is this appropriate for children?)"
     config:
       cacheResults: true
       timeout: 5000
       model: null  # Use default from config
     autocomplete:
       trigger: "#ai"
+      snippet: "#ai_gate($1)"
+
+  # Deprecated — use ai_gate instead
+  ai_judge:
+    type: ai
+    deprecated: true
+    description: "Deprecated: use #ai_gate instead"
+    example: "{{content}} #ai_judge(Is this appropriate for children?)"
+    autocomplete:
+      trigger: "#ai_j"
       snippet: "#ai_judge($1)"
 
 # =============================================================================
