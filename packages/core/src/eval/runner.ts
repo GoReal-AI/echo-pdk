@@ -25,6 +25,9 @@ import { runAssertions, type AssertionContext } from './assertions.js';
 import { DatasetManager } from './dataset.js';
 import { createProvider } from '../providers/registry.js';
 import { toLLMProvider } from '../providers/base.js';
+import { createEmbeddingProvider } from '../embeddings/registry.js';
+import { cosineSimilarity } from '../embeddings/cosine.js';
+import type { EmbeddingProvider } from '../embeddings/types.js';
 import type {
   EvalSuite,
   EvalTest,
@@ -82,6 +85,27 @@ export async function runEvalSuite(
   // Create echo instance
   const echo = createEcho({ strict: false });
 
+  // Create embedding provider (explicit config or auto-detect from OpenAI)
+  let embeddingProvider: EmbeddingProvider | undefined;
+  if (config.embeddingProvider) {
+    embeddingProvider = createEmbeddingProvider(config.embeddingProvider);
+  } else if (config.aiProvider?.type === 'openai') {
+    // Auto-detect: reuse OpenAI API key for embeddings
+    embeddingProvider = createEmbeddingProvider({
+      type: 'openai',
+      apiKey: config.aiProvider.apiKey,
+    });
+  }
+
+  // Build embeddings-based similarity closure
+  let embeddingSimilarity: ((textA: string, textB: string) => Promise<number>) | undefined;
+  if (embeddingProvider) {
+    embeddingSimilarity = async (textA: string, textB: string): Promise<number> => {
+      const vectors = await embeddingProvider!.embed([textA, textB]);
+      return cosineSimilarity(vectors[0]!, vectors[1]!);
+    };
+  }
+
   // Filter tests if needed
   let tests = suite.tests;
   if (config.filter) {
@@ -99,6 +123,7 @@ export async function runEvalSuite(
       suiteConfig: suite.config,
       runnerConfig: config,
       promptDir,
+      embeddingSimilarity,
     });
     testResults.push(result);
   }
@@ -132,6 +157,7 @@ interface TestContext {
   suiteConfig: EvalSuite['config'];
   runnerConfig: EvalRunnerConfig;
   promptDir: string;
+  embeddingSimilarity?: (textA: string, textB: string) => Promise<number>;
 }
 
 async function runSingleTest(
@@ -212,6 +238,7 @@ async function runSingleTest(
         llmResponse,
         llmProvider,
         loadGolden: (name) => ctx.datasetManager.getGolden(name),
+        embeddingSimilarity: ctx.embeddingSimilarity,
       };
       const results = await runAssertions(test.expect_llm, llmCtx);
       allAssertions.push(...results);

@@ -17,6 +17,10 @@
     "./providers": {
       "types": "./dist/providers/index.d.ts",
       "import": "./dist/providers/index.js"
+    },
+    "./embeddings": {
+      "types": "./dist/embeddings/index.d.ts",
+      "import": "./dist/embeddings/index.js"
     }
   },
   "files": [

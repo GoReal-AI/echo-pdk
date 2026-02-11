@@ -9,6 +9,7 @@
  */
 
 import type { ProviderConfig, ProviderType } from '../providers/types.js';
+import type { EmbeddingConfig } from '../embeddings/types.js';
 
 // =============================================================================
 // EVAL SUITE TYPES (.eval files)
@@ -234,6 +235,8 @@ export interface EvalRunnerConfig {
   reporter?: 'console' | 'json' | 'junit';
   /** AI provider config for LLM tests */
   aiProvider?: ProviderConfig;
+  /** Embedding provider config for similarity assertions */
+  embeddingProvider?: EmbeddingConfig;
 }
 
 /**

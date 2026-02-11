@@ -13,7 +13,7 @@
 import { readdir, stat } from 'fs/promises';
 import { join, resolve, relative } from 'path';
 import { runEvalFile, formatResults } from '@goreal-ai/echo-pdk';
-import { isProviderType } from '@goreal-ai/echo-pdk';
+import { isProviderType, isEmbeddingProviderType } from '@goreal-ai/echo-pdk';
 import type { EvalRunnerConfig, EvalSuiteResult } from '@goreal-ai/echo-pdk';
 import chalk from 'chalk';
 import ora from 'ora';
@@ -29,6 +29,9 @@ interface EvalOptions {
   reporter?: 'console' | 'json' | 'junit';
   model?: string;
   apiKey?: string;
+  embeddingProvider?: string;
+  embeddingApiKey?: string;
+  embeddingModel?: string;
 }
 
 // =============================================================================
@@ -66,6 +69,25 @@ export async function evalCommand(
       type: rawType,
       apiKey,
       model: options.model || process.env.ECHO_EVAL_MODEL || 'gpt-4o-mini',
+    };
+  }
+
+  // Resolve embedding provider if explicitly configured
+  if (options.embeddingProvider) {
+    const embType = options.embeddingProvider;
+    if (!isEmbeddingProviderType(embType)) {
+      console.error(chalk.red(`Unknown embedding provider "${embType}". Supported: openai, voyage.`));
+      process.exit(1);
+    }
+    const embKey = options.embeddingApiKey || apiKey;
+    if (!embKey) {
+      console.error(chalk.red('Embedding provider requires an API key (--embedding-api-key or --api-key).'));
+      process.exit(1);
+    }
+    runnerConfig.embeddingProvider = {
+      type: embType,
+      apiKey: embKey,
+      model: options.embeddingModel,
     };
   }
 

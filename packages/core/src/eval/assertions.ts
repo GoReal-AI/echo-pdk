@@ -27,6 +27,8 @@ export interface AssertionContext {
   llmProvider?: LLMProvider;
   /** Function to load a dataset's golden response */
   loadGolden?: (datasetName: string) => Promise<string | undefined>;
+  /** Embeddings-based similarity function (preferred over LLM when available) */
+  embeddingSimilarity?: (textA: string, textB: string) => Promise<number>;
 }
 
 /**
@@ -263,11 +265,11 @@ const assertionHandlers: Record<string, AssertionHandler> = {
 
   similar_to: async (value, ctx) => {
     const opts = value as { dataset: string; threshold: number };
-    if (!ctx.llmProvider) {
+    if (!ctx.embeddingSimilarity && !ctx.llmProvider) {
       return {
         operator: 'similar_to',
         status: 'error',
-        message: 'LLM provider not configured — cannot run similar_to assertion',
+        message: 'No embedding or LLM provider configured — cannot run similar_to assertion',
       };
     }
     if (!ctx.loadGolden) {
@@ -287,13 +289,23 @@ const assertionHandlers: Record<string, AssertionHandler> = {
       };
     }
 
-    const score = await ctx.llmProvider.similarity(ctx.text, golden);
+    // Prefer embeddings over LLM — deterministic, cheaper, faster
+    let score: number;
+    let method: string;
+    if (ctx.embeddingSimilarity) {
+      score = await ctx.embeddingSimilarity(ctx.text, golden);
+      method = 'embeddings';
+    } else {
+      score = await ctx.llmProvider!.similarity(ctx.text, golden);
+      method = 'llm';
+    }
+
     const pass = score >= opts.threshold;
     return {
       operator: 'similar_to',
       status: pass ? 'pass' : 'fail',
       expected: `similarity >= ${opts.threshold}`,
-      actual: `similarity = ${score.toFixed(3)}`,
+      actual: `similarity = ${score.toFixed(3)} (${method})`,
       message: pass ? undefined : `Similarity ${score.toFixed(3)} below threshold ${opts.threshold}`,
     };
   },

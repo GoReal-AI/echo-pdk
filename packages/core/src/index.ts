@@ -797,3 +797,23 @@ export {
   runPrompt,
   toLLMProvider,
 } from './providers/index.js';
+
+// =============================================================================
+// EMBEDDINGS MODULE
+// =============================================================================
+
+// Re-export embedding types
+export type {
+  EmbeddingProviderType,
+  EmbeddingConfig,
+  EmbeddingProvider,
+} from './embeddings/index.js';
+
+// Re-export embedding functions
+export {
+  cosineSimilarity,
+  createOpenAIEmbeddingProvider,
+  createVoyageEmbeddingProvider,
+  createEmbeddingProvider,
+  isEmbeddingProviderType,
+} from './embeddings/index.js';

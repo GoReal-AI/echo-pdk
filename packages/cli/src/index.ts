@@ -88,6 +88,9 @@ program
   .option('--filter <pattern>', 'Filter tests by name pattern')
   .option('--reporter <type>', 'Output format: console, json, junit', 'console')
   .option('-m, --model <model>', 'Override model for LLM assertions')
+  .option('--embedding-provider <type>', 'Embedding provider: openai, voyage')
+  .option('--embedding-api-key <key>', 'API key for embedding provider')
+  .option('--embedding-model <model>', 'Override embedding model')
   .action((file: string | undefined, options: Record<string, unknown>, cmd: Command) => {
     const globalOpts = cmd.optsWithGlobals();
     return evalCommand(file, { ...options, apiKey: globalOpts.apiKey } as Parameters<typeof evalCommand>[1]);
