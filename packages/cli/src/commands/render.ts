@@ -163,7 +163,7 @@ function isImageMimeType(mimeType: string): boolean {
  * @param contextDir - Directory containing context files
  * @returns ContextResolver instance
  */
-function createFileContextResolver(contextDir: string): ContextResolver {
+export function createFileContextResolver(contextDir: string): ContextResolver {
   return {
     async resolve(path: string) {
       // Check if it's a plp:// reference

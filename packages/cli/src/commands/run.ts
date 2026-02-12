@@ -14,6 +14,7 @@
 import { readFile } from 'fs/promises';
 import { join, resolve } from 'path';
 import { createEcho, parseMeta, createProvider } from '@goreal-ai/echo-pdk';
+import { createFileContextResolver } from './render.js';
 import type { MetaFile, CompletionResponse } from '@goreal-ai/echo-pdk';
 import chalk from 'chalk';
 import ora from 'ora';
@@ -29,6 +30,7 @@ import {
 interface RunOptions {
   context?: string;
   contextFile?: string;
+  contextDir?: string;
   model?: string;
   showRendered?: boolean;
   apiKey?: string;
@@ -85,7 +87,10 @@ export async function runCommand(
 
   // 5. Render the template
   const spinner = ora('Rendering template...').start();
-  const echo = createEcho({ strict: false });
+  const contextResolver = options.contextDir
+    ? createFileContextResolver(options.contextDir)
+    : undefined;
+  const echo = createEcho({ strict: false, contextResolver });
   let rendered: string;
   try {
     rendered = await echo.render(template, context);

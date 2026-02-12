@@ -102,6 +102,7 @@ program
   .description('Run a prompt against the model configured in meta.yaml')
   .option('-c, --context <json>', 'Context variables as JSON string')
   .option('-f, --context-file <path>', 'Path to context JSON file')
+  .option('-d, --context-dir <path>', 'Directory for #context() file resolution')
   .option('-m, --model <model>', 'Override model (e.g., gpt-4o-mini)')
   .option('--show-rendered', 'Show the rendered prompt before sending to LLM')
   .action((name: string, options: Record<string, unknown>, cmd: Command) => {
