@@ -98,13 +98,40 @@ export function createAnthropicProvider(config: ProviderConfig): AIProviderInsta
       // Anthropic: system messages go in top-level `system` field.
       // Multiple system messages are concatenated (separated by newlines).
       const systemParts: string[] = [];
-      const userMessages: Array<{ role: string; content: string }> = [];
+      const userMessages: Array<{ role: string; content: string | unknown[] }> = [];
 
       for (const m of messages) {
         if (m.role === 'system') {
-          systemParts.push(m.content);
-        } else {
+          // System messages are always strings
+          systemParts.push(typeof m.content === 'string' ? m.content : '');
+        } else if (typeof m.content === 'string') {
           userMessages.push({ role: m.role, content: m.content });
+        } else {
+          // Convert ContentBlock[] to Anthropic's format
+          const anthropicBlocks = m.content.map((block) => {
+            if (block.type === 'text') {
+              return { type: 'text', text: block.text };
+            }
+            // Convert image_url to Anthropic's image source format
+            const url = block.image_url.url;
+            const match = url.match(/^data:([^;]+);base64,(.+)$/);
+            if (match) {
+              return {
+                type: 'image',
+                source: {
+                  type: 'base64',
+                  media_type: match[1],
+                  data: match[2],
+                },
+              };
+            }
+            // URL-based image
+            return {
+              type: 'image',
+              source: { type: 'url', url },
+            };
+          });
+          userMessages.push({ role: m.role, content: anthropicBlocks });
         }
       }
 

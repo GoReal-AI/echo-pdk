@@ -15,7 +15,7 @@ import { readFile } from 'fs/promises';
 import { join, resolve } from 'path';
 import { createEcho, parseMeta, createProvider } from '@goreal-ai/echo-pdk';
 import { createFileContextResolver } from './render.js';
-import type { MetaFile, CompletionResponse } from '@goreal-ai/echo-pdk';
+import type { MetaFile, CompletionResponse, MultimodalContent } from '@goreal-ai/echo-pdk';
 import chalk from 'chalk';
 import ora from 'ora';
 import {
@@ -85,15 +85,15 @@ export async function runCommand(
   // 4. Load context
   const context = await loadContext(options);
 
-  // 5. Render the template
+  // 5. Render the template (multimodal to support images via #context())
   const spinner = ora('Rendering template...').start();
   const contextResolver = options.contextDir
     ? createFileContextResolver(options.contextDir)
     : undefined;
   const echo = createEcho({ strict: false, contextResolver });
-  let rendered: string;
+  let rendered: MultimodalContent;
   try {
-    rendered = await echo.render(template, context);
+    rendered = await echo.renderMultimodal(template, context);
   } catch (err) {
     spinner.fail('Render failed');
     console.error(chalk.red((err as Error).message));
@@ -105,7 +105,13 @@ export async function runCommand(
     spinner.stop();
     console.log(chalk.bold('\nRendered prompt:'));
     console.log(chalk.dim('─'.repeat(60)));
-    console.log(chalk.dim(rendered));
+    for (const block of rendered) {
+      if (block.type === 'text') {
+        console.log(chalk.dim(block.text));
+      } else {
+        console.log(chalk.dim(`[IMAGE: ${block.image_url.url.substring(0, 60)}...]`));
+      }
+    }
     console.log(chalk.dim('─'.repeat(60)));
     console.log('');
     spinner.start();
@@ -116,8 +122,13 @@ export async function runCommand(
     model: options.model,
   });
 
-  // 8. Send to LLM
+  // 8. Send to LLM — use content blocks for multimodal, plain string otherwise
   spinner.text = `Sending to ${providerConfig.model}...`;
+  const hasImages = rendered.some((b) => b.type === 'image_url');
+  const messageContent = hasImages
+    ? rendered
+    : rendered.map((b) => (b.type === 'text' ? b.text : '')).join('');
+
   let result: CompletionResponse;
   try {
     const provider = createProvider({
@@ -126,7 +137,7 @@ export async function runCommand(
       model: providerConfig.model,
     });
     result = await provider.complete(
-      [{ role: 'user', content: rendered }],
+      [{ role: 'user', content: messageContent }],
       {
         model: providerConfig.model,
         temperature: providerConfig.temperature,

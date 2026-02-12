@@ -78,10 +78,12 @@ export interface ModelInfo {
 
 /**
  * Chat message for completion requests.
+ * Content can be a plain string or an array of content blocks for multimodal
+ * messages (e.g., text + images from `renderMultimodal()`).
  */
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant';
-  content: string;
+  content: string | import('../types.js').ContentBlock[];
 }
 
 /**

@@ -95,7 +95,10 @@ export function createOpenAIProvider(config: ProviderConfig): AIProviderInstance
 
       const body: Record<string, unknown> = {
         model,
-        messages: messages.map((m) => ({ role: m.role, content: m.content })),
+        messages: messages.map((m) => ({
+          role: m.role,
+          content: m.content, // string or ContentBlock[] — OpenAI accepts both natively
+        })),
       };
       if (options?.temperature !== undefined) {
         body.temperature = options.temperature;
