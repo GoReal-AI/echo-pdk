@@ -15,7 +15,11 @@ export const KEYWORDS = [
   "SECTION",
   "END SECTION",
   "IMPORT",
-  "INCLUDE"
+  "INCLUDE",
+  "ROLE",
+  "END ROLE",
+  "TOOL",
+  "END TOOL"
 ] as const;
 
 export type Keyword = typeof KEYWORDS[number];
@@ -67,6 +71,7 @@ export const DIRECTIVES: DirectiveDefinition[] = [
 
 export interface OperatorDefinition {
   name: string;
+  aliases?: string[];
   type: 'comparison' | 'unary' | 'ai';
   description: string;
   example: string;
@@ -109,6 +114,9 @@ export const OPERATORS: OperatorDefinition[] = [
   },
   {
     "name": "in",
+    "aliases": [
+      "one_of"
+    ],
     "type": "comparison",
     "description": "Check if value is in a comma-separated list",
     "example": "{{status}} #in(active,pending,completed)",
@@ -119,6 +127,9 @@ export const OPERATORS: OperatorDefinition[] = [
   },
   {
     "name": "gt",
+    "aliases": [
+      "greater_than"
+    ],
     "type": "comparison",
     "description": "Greater than comparison",
     "example": "{{age}} #gt(18)",
@@ -129,6 +140,9 @@ export const OPERATORS: OperatorDefinition[] = [
   },
   {
     "name": "gte",
+    "aliases": [
+      "greater_than_or_equal"
+    ],
     "type": "comparison",
     "description": "Greater than or equal comparison",
     "example": "{{score}} #gte(50)",
@@ -139,6 +153,9 @@ export const OPERATORS: OperatorDefinition[] = [
   },
   {
     "name": "lt",
+    "aliases": [
+      "less_than"
+    ],
     "type": "comparison",
     "description": "Less than comparison",
     "example": "{{count}} #lt(10)",
@@ -149,6 +166,9 @@ export const OPERATORS: OperatorDefinition[] = [
   },
   {
     "name": "lte",
+    "aliases": [
+      "less_than_or_equal"
+    ],
     "type": "comparison",
     "description": "Less than or equal comparison",
     "example": "{{retries}} #lte(3)",
@@ -232,16 +252,22 @@ export const SNIPPETS: SnippetDefinition[] = [
     "description": "Comment block"
   },
   {
-    "name": "ROLE block",
+    "name": "Message role block — structures prompt into system/user/assistant messages",
     "trigger": "[#ROLE",
-    "snippet": "[#ROLE ${1|system,user,assistant|}]\\n$0\\n[END ROLE]",
-    "description": "Message role block"
+    "snippet": "[#ROLE ${1|system,user,assistant|}]\n$0\n[END ROLE]",
+    "description": "Message role block — structures prompt into system/user/assistant messages"
   },
   {
-    "name": "TOOL definition",
+    "name": "Tool/function definition — declares tools for LLM function calling",
     "trigger": "[#TOOL",
-    "snippet": "[#TOOL ${1:tool_name}]\\ndescription: ${2:What this tool does}\\nparameters:\\n  ${3:param_name}:\\n    type: ${4:string}\\n    description: ${5:Parameter description}\\n    required: true\\n[END TOOL]",
-    "description": "Tool/function definition"
+    "snippet": "[#TOOL ${1:tool_name}]\ndescription: ${2:what this tool does}\nparameters:\n  ${3:param_name}:\n    type: ${4|string,number,boolean,array|}\n    description: ${5:param description}\n    required: ${6|true,false|}\n[END TOOL]",
+    "description": "Tool/function definition — declares tools for LLM function calling"
+  },
+  {
+    "name": "Reference a file or image from Context Store",
+    "trigger": "#con",
+    "snippet": "#context($1)",
+    "description": "Reference a file or image from Context Store"
   }
 ];
 

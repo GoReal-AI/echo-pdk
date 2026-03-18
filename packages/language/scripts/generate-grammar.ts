@@ -50,6 +50,7 @@ interface SyntaxDef {
 
 interface OperatorDef {
   type: 'comparison' | 'unary' | 'ai';
+  aliases?: string[];
   signature: string;
   description: string;
   example: string;
@@ -91,8 +92,14 @@ interface TMPattern {
 }
 
 function generateTextMateGrammar(lang: LangDefinition): TMGrammar {
-  // Build operator names for regex
-  const operatorNames = Object.keys(lang.operators);
+  // Build operator names for regex (include aliases)
+  const operatorNames: string[] = [];
+  for (const [name, def] of Object.entries(lang.operators)) {
+    operatorNames.push(name);
+    if (def.aliases) {
+      operatorNames.push(...def.aliases);
+    }
+  }
   const operatorPattern = operatorNames.join('|');
 
   // Build directive names (syntax items with standalone patterns like #context)
@@ -170,10 +177,32 @@ function generateTextMateGrammar(lang: LangDefinition): TMGrammar {
             name: 'keyword.control.else.echo',
             match: '\\[ELSE\\]',
           },
-          // [END IF]
+          // [END IF], [END SECTION], [END ROLE], [END TOOL]
           {
             name: 'keyword.control.end.echo',
-            match: '\\[END\\s+(IF|SECTION)\\]',
+            match: '\\[END\\s+(IF|SECTION|ROLE|TOOL)\\]',
+          },
+          // [#ROLE system|user|assistant]
+          {
+            name: 'meta.control.role.echo',
+            match: '(\\[)(#ROLE)\\s+(system|user|assistant)(\\])',
+            captures: {
+              '1': { name: 'punctuation.bracket.open.echo' },
+              '2': { name: 'keyword.control.role.echo' },
+              '3': { name: 'constant.language.role.echo' },
+              '4': { name: 'punctuation.bracket.close.echo' },
+            },
+          },
+          // [#TOOL name]
+          {
+            name: 'meta.control.tool.echo',
+            match: '(\\[)(#TOOL)\\s+([a-zA-Z_][a-zA-Z0-9_]*)(\\])',
+            captures: {
+              '1': { name: 'punctuation.bracket.open.echo' },
+              '2': { name: 'keyword.control.tool.echo' },
+              '3': { name: 'entity.name.function.tool.echo' },
+              '4': { name: 'punctuation.bracket.close.echo' },
+            },
           },
           // [#SECTION name="..."]
           {
@@ -314,7 +343,7 @@ function generateTextMateGrammar(lang: LangDefinition): TMGrammar {
 // =============================================================================
 
 function generateTypeScriptData(lang: LangDefinition): string {
-  const keywords = ['IF', 'ELSE', 'ELSE IF', 'END IF', 'SECTION', 'END SECTION', 'IMPORT', 'INCLUDE'];
+  const keywords = ['IF', 'ELSE', 'ELSE IF', 'END IF', 'SECTION', 'END SECTION', 'IMPORT', 'INCLUDE', 'ROLE', 'END ROLE', 'TOOL', 'END TOOL'];
 
   const directives: Array<{
     name: string;
@@ -336,6 +365,7 @@ function generateTypeScriptData(lang: LangDefinition): string {
 
   const operators: Array<{
     name: string;
+    aliases?: string[];
     type: string;
     description: string;
     example: string;
@@ -345,6 +375,7 @@ function generateTypeScriptData(lang: LangDefinition): string {
   for (const [name, def] of Object.entries(lang.operators)) {
     operators.push({
       name,
+      ...(def.aliases && { aliases: def.aliases }),
       type: def.type,
       description: def.description,
       example: def.example,
@@ -352,50 +383,26 @@ function generateTypeScriptData(lang: LangDefinition): string {
     });
   }
 
-  const snippets = [
-    {
-      name: 'IF block',
-      trigger: '[#IF',
-      snippet: '[#IF {{${1:variable}}} #${2:exists}]\\n$0\\n[END IF]',
-      description: 'Conditional block',
-    },
-    {
-      name: 'SECTION',
-      trigger: '[#SECTION',
-      snippet: '[#SECTION name="${1:name}"]\\n$0\\n[END SECTION]',
-      description: 'Reusable section',
-    },
-    {
-      name: 'Variable',
-      trigger: '{{',
-      snippet: '{{${1:variable}}}',
-      description: 'Variable substitution',
-    },
-    {
-      name: 'Variable with default',
-      trigger: '{{?',
-      snippet: '{{${1:variable} ?? "${2:default}"}}',
-      description: 'Variable with default value',
-    },
-    {
-      name: 'Comment',
-      trigger: '[#--',
-      snippet: '[#-- ${1:comment} --]',
-      description: 'Comment block',
-    },
-    {
-      name: 'ROLE block',
-      trigger: '[#ROLE',
-      snippet: '[#ROLE ${1|system,user,assistant|}]\\n$0\\n[END ROLE]',
-      description: 'Message role block',
-    },
-    {
-      name: 'TOOL definition',
-      trigger: '[#TOOL',
-      snippet: '[#TOOL ${1:tool_name}]\\ndescription: ${2:What this tool does}\\nparameters:\\n  ${3:param_name}:\\n    type: ${4:string}\\n    description: ${5:Parameter description}\\n    required: true\\n[END TOOL]',
-      description: 'Tool/function definition',
-    },
+  // Build snippets — static ones plus any from YAML syntax definitions
+  const snippets: Array<{ name: string; trigger: string; snippet: string; description: string }> = [
+    { name: 'IF block', trigger: '[#IF', snippet: '[#IF {{${1:variable}}} #${2:exists}]\\n$0\\n[END IF]', description: 'Conditional block' },
+    { name: 'SECTION', trigger: '[#SECTION', snippet: '[#SECTION name="${1:name}"]\\n$0\\n[END SECTION]', description: 'Reusable section' },
+    { name: 'Variable', trigger: '{{', snippet: '{{${1:variable}}}', description: 'Variable substitution' },
+    { name: 'Variable with default', trigger: '{{?', snippet: '{{${1:variable} ?? "${2:default}"}}', description: 'Variable with default value' },
+    { name: 'Comment', trigger: '[#--', snippet: '[#-- ${1:comment} --]', description: 'Comment block' },
   ];
+
+  // Add snippets from YAML syntax definitions (role, tool, etc.)
+  for (const [, def] of Object.entries(lang.syntax)) {
+    if (def.autocomplete) {
+      snippets.push({
+        name: def.description,
+        trigger: def.autocomplete.trigger,
+        snippet: def.autocomplete.snippet,
+        description: def.description,
+      });
+    }
+  }
 
   return `/**
  * AUTO-GENERATED FILE - DO NOT EDIT
@@ -432,6 +439,7 @@ export const DIRECTIVES: DirectiveDefinition[] = ${JSON.stringify(directives, nu
 
 export interface OperatorDefinition {
   name: string;
+  aliases?: string[];
   type: 'comparison' | 'unary' | 'ai';
   description: string;
   example: string;
