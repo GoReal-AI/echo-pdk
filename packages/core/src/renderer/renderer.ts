@@ -21,9 +21,15 @@ import type {
   ContentBlock,
   ContextNode,
   EchoConfig,
+  EchoMessage,
+  EchoToolDefinition,
   MultimodalContent,
   OperatorDefinition,
+  RenderResult,
+  RoleNode,
   TextNode,
+  ToolNode,
+  ToolParameter,
   VariableNode,
 } from '../types.js';
 import { parse } from '../parser/parser.js';
@@ -138,6 +144,14 @@ function renderNode(node: ASTNode, options: RenderOptions): string | undefined {
 
     case 'context':
       return renderContext(node, options);
+
+    case 'role':
+      // In flat string rendering, render role body content inline
+      return render(node.body, options);
+
+    case 'tool':
+      // Tool definitions are not rendered as text — they're structural metadata
+      return undefined;
 
     default: {
       // Exhaustiveness check
@@ -315,6 +329,17 @@ export function renderMultimodal(ast: ASTNode[], options: RenderOptions): Multim
         }
         break;
 
+      case 'role':
+        // In flat multimodal rendering, render role body content inline
+        for (const child of node.body) {
+          processNode(child);
+        }
+        break;
+
+      case 'tool':
+        // Tool definitions are not rendered in multimodal content
+        break;
+
       default: {
         // Exhaustiveness check
         throw new Error(`Unknown node type: ${(node as ASTNode).type}`);
@@ -470,6 +495,117 @@ function stringify(value: unknown): string {
  */
 function collapseNewlines(text: string): string {
   return text.replace(/\n{3,}/g, '\n\n');
+}
+
+// =============================================================================
+// STRUCTURED RENDER (Messages + Tools)
+// =============================================================================
+
+/**
+ * Render an evaluated AST to structured messages and tool definitions.
+ *
+ * - Role nodes become separate messages with their role
+ * - Tool nodes become OpenAI-compatible tool definitions
+ * - Loose content (outside roles) becomes a user message
+ * - Templates without roles default to a single user message
+ *
+ * @param ast - The evaluated AST
+ * @param options - Render options
+ * @returns Messages and tool definitions
+ */
+export function renderMessages(ast: ASTNode[], options: RenderOptions): RenderResult {
+  const messages: EchoMessage[] = [];
+  const tools: EchoToolDefinition[] = [];
+
+  const roleNodes: RoleNode[] = [];
+  const toolNodes: ToolNode[] = [];
+  const looseNodes: ASTNode[] = [];
+
+  for (const node of ast) {
+    if (node.type === 'role') {
+      roleNodes.push(node);
+    } else if (node.type === 'tool') {
+      toolNodes.push(node);
+    } else {
+      looseNodes.push(node);
+    }
+  }
+
+  // Build messages
+  if (roleNodes.length === 0) {
+    // No roles: wrap everything in a single user message
+    const content = renderMultimodal(looseNodes, options);
+    if (content.length > 0) {
+      messages.push({ role: 'user', content });
+    }
+  } else {
+    // Render each role as a separate message
+    for (const roleNode of roleNodes) {
+      const content = renderMultimodal(roleNode.body, options);
+      if (content.length > 0) {
+        messages.push({ role: roleNode.role, content });
+      }
+    }
+    // Loose nodes between/outside roles become a user message (if non-empty)
+    const looseContent = renderMultimodal(
+      looseNodes.filter(n => n.type !== 'section'),
+      options
+    );
+    const hasContent = looseContent.some(
+      b => b.type !== 'text' || b.text.trim().length > 0
+    );
+    if (looseContent.length > 0 && hasContent) {
+      messages.push({ role: 'user', content: looseContent });
+    }
+  }
+
+  // Convert tool nodes to definitions
+  for (const toolNode of toolNodes) {
+    tools.push(convertToolNode(toolNode));
+  }
+
+  return { messages, tools, meta: {} };
+}
+
+/**
+ * Convert a ToolNode to an OpenAI-compatible tool definition.
+ */
+function convertToolNode(node: ToolNode): EchoToolDefinition {
+  return {
+    type: 'function',
+    function: {
+      name: node.name,
+      description: node.description,
+      parameters: convertParameters(node.parameters),
+    },
+  };
+}
+
+/**
+ * Convert ToolParameter[] to JSON Schema format.
+ */
+function convertParameters(params: ToolParameter[]): Record<string, unknown> {
+  const properties: Record<string, unknown> = {};
+  const required: string[] = [];
+
+  for (const param of params) {
+    const prop: Record<string, unknown> = { type: param.type };
+    if (param.description) prop.description = param.description;
+    if (param.enum) prop.enum = param.enum;
+    if (param.default !== undefined) prop.default = param.default;
+    if (param.items) prop.items = param.items;
+    properties[param.name] = prop;
+
+    if (param.required) {
+      required.push(param.name);
+    }
+  }
+
+  return {
+    type: 'object',
+    properties,
+    ...(required.length > 0 && { required }),
+  };
 }
 
 // =============================================================================

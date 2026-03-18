@@ -423,6 +423,16 @@ async function evaluateNode(
       // This allows context to be resolved in batch for efficiency
       return [node];
 
+    case 'role': {
+      // Recursively evaluate role body (conditionals, variables, etc.)
+      const evaluatedBody = await evaluateNodes(node.body, ctx);
+      return [{ ...node, body: evaluatedBody }];
+    }
+
+    case 'tool':
+      // Tool nodes pass through unchanged (static metadata)
+      return [node];
+
     default: {
       // Exhaustiveness check
       throw new Error(`Unknown node type: ${(node as ASTNode).type}`);

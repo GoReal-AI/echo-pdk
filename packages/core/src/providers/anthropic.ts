@@ -13,6 +13,7 @@ import type {
   ModelInfo,
   ProviderConfig,
   ProviderInfo,
+  ToolCall,
 } from './types.js';
 import {
   fetchWithTimeout,
@@ -42,13 +43,17 @@ export const ANTHROPIC_INFO: ProviderInfo = Object.freeze({
 interface AnthropicMessageResponse {
   content: Array<{
     type: string;
-    text: string;
+    text?: string;
+    id?: string;
+    name?: string;
+    input?: Record<string, unknown>;
   }>;
   usage: {
     input_tokens: number;
     output_tokens: number;
   };
   model: string;
+  stop_reason?: string;
 }
 
 interface AnthropicModelsResponse {
@@ -148,6 +153,14 @@ export function createAnthropicProvider(config: ProviderConfig): AIProviderInsta
       if (options?.temperature !== undefined) {
         body.temperature = options.temperature;
       }
+      if (options?.tools && options.tools.length > 0) {
+        // Convert OpenAI tool format to Anthropic format
+        body.tools = options.tools.map(t => ({
+          name: t.function.name,
+          description: t.function.description,
+          input_schema: t.function.parameters,
+        }));
+      }
 
       const response = await fetchWithTimeout(
         `${baseUrl}/v1/messages`,
@@ -166,11 +179,23 @@ export function createAnthropicProvider(config: ProviderConfig): AIProviderInsta
       const data = (await response.json()) as AnthropicMessageResponse;
       const text = data.content
         .filter((c) => c.type === 'text')
-        .map((c) => c.text)
+        .map((c) => c.text ?? '')
         .join('');
+
+      // Parse tool_use blocks
+      let toolCalls: ToolCall[] | undefined;
+      const toolUseBlocks = data.content.filter(c => c.type === 'tool_use');
+      if (toolUseBlocks.length > 0) {
+        toolCalls = toolUseBlocks.map(tc => ({
+          id: tc.id ?? '',
+          name: tc.name ?? '',
+          arguments: tc.input ?? {},
+        }));
+      }
 
       return {
         text,
+        toolCalls,
         tokens: {
           prompt: data.usage.input_tokens,
           completion: data.usage.output_tokens,

@@ -32,6 +32,10 @@ export type {
   ImportNode,
   IncludeNode,
   ContextNode,
+  RoleNode,
+  ToolNode,
+  ToolParameter,
+  MessageRole,
   ConditionExpr,
   SourceLocation,
   // Context types
@@ -46,6 +50,10 @@ export type {
   TextContentBlock,
   ImageUrlContentBlock,
   MultimodalContent,
+  // Structured render result
+  EchoMessage,
+  EchoToolDefinition,
+  RenderResult,
   // Results
   ParseResult,
   ValidationResult,
@@ -73,7 +81,7 @@ import type {
 // Import submodules
 import { parse } from './parser/parser.js';
 import { evaluate } from './evaluator/index.js';
-import { render, renderMultimodal, formatErrors } from './renderer/renderer.js';
+import { render, renderMultimodal, renderMessages, formatErrors } from './renderer/renderer.js';
 import { builtinOperators, getOperator } from './evaluator/index.js';
 import { createAIJudgeProvider, withCache } from './ai-judge/index.js';
 import {
@@ -85,7 +93,7 @@ import {
   type ContextBatchResult,
 } from './context/index.js';
 
-import type { MultimodalContent } from './types.js';
+import type { MultimodalContent, RenderResult } from './types.js';
 
 // Re-export utilities for advanced usage
 export { parse } from './parser/parser.js';
@@ -94,7 +102,7 @@ export {
   resolveVariable,
   type ResolveVariableOptions,
 } from './evaluator/evaluator.js';
-export { render, renderMultimodal, renderTemplate, formatErrors } from './renderer/renderer.js';
+export { render, renderMultimodal, renderMessages, renderTemplate, formatErrors } from './renderer/renderer.js';
 export { builtinOperators, getOperator } from './evaluator/operators.js';
 export {
   createTextNode,
@@ -105,6 +113,8 @@ export {
   createImportNode,
   createIncludeNode,
   createContextNode,
+  createRoleNode,
+  createToolNode,
   collectAiJudgeConditions,
   visitNode,
   visitNodes,
@@ -367,6 +377,72 @@ export function createEcho(config: EchoConfig = {}): Echo {
         trim: false,
         collapseNewlines: true,
       });
+    },
+
+    /**
+     * Render a template to structured messages and tool definitions.
+     * This is the primary rendering method for multi-role templates with tools.
+     *
+     * @example
+     * const { messages, tools } = await echo.renderMessages(template, { name: 'Alice' });
+     * // messages: [{ role: 'system', content: [...] }, { role: 'user', content: [...] }]
+     * // tools: [{ type: 'function', function: { name: 'get_weather', ... } }]
+     */
+    async renderMessages(
+      template: string,
+      context: Record<string, unknown>,
+      options?: { metaTemplate?: string },
+    ): Promise<RenderResult> {
+      // Step 1: Parse prompt template
+      const parseResult = parse(template);
+
+      if (!parseResult.success || !parseResult.ast) {
+        const formattedErrors = formatErrors(template, parseResult.errors);
+        throw new Error(`Parse error:\n${formattedErrors}`);
+      }
+
+      // Step 2: Evaluate
+      const { ast: evaluatedAst } = await evaluate(
+        parseResult.ast,
+        context,
+        config,
+        operators
+      );
+
+      // Step 3: Resolve context references (if resolver provided)
+      if (config.contextResolver) {
+        await resolveContextNodes(evaluatedAst, config.contextResolver);
+      }
+
+      // Step 4: Render to structured messages + tools
+      const result = renderMessages(evaluatedAst, {
+        context,
+        config,
+        trim: false,
+        collapseNewlines: true,
+      });
+
+      // Step 5: Render meta template if provided → parse as key:value config
+      if (options?.metaTemplate) {
+        const metaParseResult = parse(options.metaTemplate);
+        if (metaParseResult.success && metaParseResult.ast) {
+          const { ast: metaAst } = await evaluate(
+            metaParseResult.ast,
+            context,
+            config,
+            operators
+          );
+          const metaText = render(metaAst, {
+            context,
+            config,
+            trim: false,
+            collapseNewlines: true,
+          });
+          result.meta = parseSimpleYaml(metaText);
+        }
+      }
+
+      return result;
     },
 
     /**
@@ -817,3 +893,42 @@ export {
   createEmbeddingProvider,
   isEmbeddingProviderType,
 } from './embeddings/index.js';
+
+// =============================================================================
+// META TEMPLATE HELPERS
+// =============================================================================
+
+/**
+ * Parse simple YAML-like key: value text into a record.
+ * Supports strings, numbers, and booleans. No nesting.
+ * Used to parse rendered meta templates into model config.
+ */
+function parseSimpleYaml(text: string): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const line of text.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const colonIdx = trimmed.indexOf(':');
+    if (colonIdx <= 0) continue;
+    const key = trimmed.slice(0, colonIdx).trim();
+    const rawValue = trimmed.slice(colonIdx + 1).trim();
+    if (!rawValue) continue;
+    result[key] = parseMetaScalar(rawValue);
+  }
+  return result;
+}
+
+/** Parse a scalar value from meta template output */
+function parseMetaScalar(value: string): unknown {
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+  if (value === 'null' || value === 'undefined') return null;
+  const num = Number(value);
+  if (!isNaN(num) && value !== '') return num;
+  // Strip quotes
+  if ((value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))) {
+    return value.slice(1, -1);
+  }
+  return value;
+}

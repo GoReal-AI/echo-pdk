@@ -32,6 +32,7 @@ import type {
   EchoError,
   ParseResult,
   SourceLocation,
+  ToolParameter,
   VariableType,
 } from '../types.js';
 import {
@@ -43,7 +44,9 @@ import {
   Else,
   ElseIf,
   EndIf,
+  EndRole,
   EndSection,
+  EndTool,
   Equals,
   formatLexerErrors,
   Identifier,
@@ -54,10 +57,12 @@ import {
   NumberLiteral,
   Operator,
   OperatorArgText,
+  RoleOpen,
   RParen,
   SectionOpen,
   StringLiteral,
   Text,
+  ToolOpen,
   tokenize,
   VariableClose,
   VariableOpen,
@@ -68,8 +73,10 @@ import {
   createContextNode,
   createImportNode,
   createIncludeNode,
+  createRoleNode,
   createSectionNode,
   createTextNode,
+  createToolNode,
   createVariableNode,
 } from './ast.js';
 
@@ -107,7 +114,7 @@ class EchoParser extends CstParser {
   });
 
   /**
-   * A node can be text, variable, conditional, section, import, include, or context
+   * A node can be text, variable, conditional, section, role, tool, import, include, or context
    */
   private node = this.RULE('node', () => {
     this.OR([
@@ -115,6 +122,8 @@ class EchoParser extends CstParser {
       { ALT: () => this.SUBRULE(this.variableNode) },
       { ALT: () => this.SUBRULE(this.conditionalNode) },
       { ALT: () => this.SUBRULE(this.sectionNode) },
+      { ALT: () => this.SUBRULE(this.roleNode) },
+      { ALT: () => this.SUBRULE(this.toolNode) },
       { ALT: () => this.SUBRULE(this.importNode) },
       { ALT: () => this.SUBRULE(this.includeNode) },
       { ALT: () => this.SUBRULE(this.contextNode) },
@@ -268,6 +277,40 @@ class EchoParser extends CstParser {
     });
     this.CONSUME(RParen);
   });
+
+  /**
+   * Role block: [#ROLE system]...[END ROLE]
+   */
+  private roleNode = this.RULE('roleNode', () => {
+    this.CONSUME(RoleOpen);
+    this.CONSUME(Identifier); // role name: system, user, assistant
+    this.CONSUME(CloseBracket);
+
+    this.MANY(() => {
+      this.SUBRULE(this.node);
+    });
+
+    this.CONSUME(EndRole);
+  });
+
+  /**
+   * Tool definition: [#TOOL name]...[END TOOL]
+   *
+   * The body between [#TOOL name] and [END TOOL] is captured as Text tokens
+   * and parsed as YAML-like structured data by the visitor.
+   */
+  private toolNode = this.RULE('toolNode', () => {
+    this.CONSUME(ToolOpen);
+    this.CONSUME(Identifier); // tool name
+    this.CONSUME(CloseBracket);
+
+    // Body is raw text tokens (YAML-like content)
+    this.MANY(() => {
+      this.CONSUME(Text);
+    });
+
+    this.CONSUME(EndTool);
+  });
 }
 
 // =============================================================================
@@ -346,6 +389,12 @@ class EchoAstVisitor extends BaseCstVisitor {
     }
     if (ctx.contextNode?.[0]) {
       return this.visit(ctx.contextNode[0]);
+    }
+    if (ctx.roleNode?.[0]) {
+      return this.visit(ctx.roleNode[0]);
+    }
+    if (ctx.toolNode?.[0]) {
+      return this.visit(ctx.toolNode[0]);
     }
     return undefined;
   }
@@ -662,6 +711,55 @@ class EchoAstVisitor extends BaseCstVisitor {
 
     return createContextNode(path, location);
   }
+
+  /**
+   * Visit a role node.
+   */
+  roleNode(ctx: CstRoleNodeContext): ASTNode {
+    const roleOpenToken = ctx.RoleOpen?.[0];
+    const endRoleToken = ctx.EndRole?.[0];
+    const identifierToken = ctx.Identifier?.[0];
+
+    const role = (identifierToken?.image ?? 'user') as import('../types.js').MessageRole;
+
+    const body: ASTNode[] = [];
+    if (ctx.node) {
+      for (const nodeCtx of ctx.node) {
+        const node = this.visit(nodeCtx);
+        if (node) {
+          body.push(node);
+        }
+      }
+    }
+
+    const location = roleOpenToken && endRoleToken
+      ? mergeLocations(getTokenLocation(roleOpenToken), getTokenLocation(endRoleToken))
+      : defaultLocation;
+
+    return createRoleNode(role, body, location);
+  }
+
+  /**
+   * Visit a tool node.
+   * Collects raw text body and parses as YAML-like tool definition.
+   */
+  toolNode(ctx: CstToolNodeContext): ASTNode {
+    const toolOpenToken = ctx.ToolOpen?.[0];
+    const endToolToken = ctx.EndTool?.[0];
+    const identifierToken = ctx.Identifier?.[0];
+
+    const name = identifierToken?.image ?? '';
+
+    // Collect all text tokens as the tool body
+    const bodyText = (ctx.Text ?? []).map(t => t.image).join('');
+    const { description, parameters } = parseToolBody(bodyText);
+
+    const location = toolOpenToken && endToolToken
+      ? mergeLocations(getTokenLocation(toolOpenToken), getTokenLocation(endToolToken))
+      : defaultLocation;
+
+    return createToolNode(name, description, parameters, location);
+  }
 }
 
 // Create singleton visitor instance
@@ -680,6 +778,8 @@ interface CstNodeContext {
   variableNode?: CstNode[];
   conditionalNode?: CstNode[];
   sectionNode?: CstNode[];
+  roleNode?: CstNode[];
+  toolNode?: CstNode[];
   importNode?: CstNode[];
   includeNode?: CstNode[];
   contextNode?: CstNode[];
@@ -757,6 +857,22 @@ interface CstContextNodeContext {
   ContextOpen?: IToken[];
   ContextArgText?: IToken[];
   RParen?: IToken[];
+}
+
+interface CstRoleNodeContext {
+  RoleOpen?: IToken[];
+  EndRole?: IToken[];
+  CloseBracket?: IToken[];
+  Identifier?: IToken[];
+  node?: CstNode[];
+}
+
+interface CstToolNodeContext {
+  ToolOpen?: IToken[];
+  EndTool?: IToken[];
+  CloseBracket?: IToken[];
+  Identifier?: IToken[];
+  Text?: IToken[];
 }
 
 // =============================================================================
@@ -876,6 +992,111 @@ function formatParserErrors(errors: typeof parserInstance.errors): EchoError[] {
       location: token ? getTokenLocation(token) : undefined,
     };
   });
+}
+
+// =============================================================================
+// TOOL BODY PARSER
+// =============================================================================
+
+/**
+ * Parse YAML-like tool body text into description and parameters.
+ *
+ * Expected format:
+ *   description: Human-readable description
+ *   parameters:
+ *     param_name:
+ *       type: string
+ *       description: Param description
+ *       required: true
+ *       enum: [a, b, c]
+ *       default: value
+ */
+function parseToolBody(text: string): { description: string; parameters: ToolParameter[] } {
+  const lines = text.split('\n');
+  let description = '';
+  const parameters: ToolParameter[] = [];
+
+  let section: 'root' | 'parameters' | 'param' = 'root';
+  let currentParam: Partial<ToolParameter> | null = null;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+
+    // Root-level keys
+    if (!line.startsWith('  ') && !line.startsWith('\t')) {
+      if (trimmed.startsWith('description:')) {
+        description = trimmed.slice('description:'.length).trim();
+        section = 'root';
+      } else if (trimmed === 'parameters:') {
+        section = 'parameters';
+      }
+      continue;
+    }
+
+    if (section === 'parameters' || section === 'param') {
+      const indent = line.search(/\S/);
+
+      // Parameter name (2-space indent, ends with colon)
+      if (indent <= 4 && trimmed.endsWith(':') && !trimmed.includes(' ')) {
+        if (currentParam?.name) {
+          parameters.push(currentParam as ToolParameter);
+        }
+        currentParam = { name: trimmed.slice(0, -1), type: 'string' };
+        section = 'param';
+        continue;
+      }
+
+      // Parameter properties (4+ space indent)
+      if (section === 'param' && currentParam && indent >= 4) {
+        const colonIdx = trimmed.indexOf(':');
+        if (colonIdx > 0) {
+          const key = trimmed.slice(0, colonIdx).trim();
+          const value = trimmed.slice(colonIdx + 1).trim();
+
+          switch (key) {
+            case 'type':
+              currentParam.type = value;
+              break;
+            case 'description':
+              currentParam.description = value;
+              break;
+            case 'required':
+              currentParam.required = value === 'true';
+              break;
+            case 'enum':
+              currentParam.enum = parseInlineArray(value);
+              break;
+            case 'default':
+              currentParam.default = parseScalar(value);
+              break;
+          }
+        }
+      }
+    }
+  }
+
+  // Push last parameter
+  if (currentParam?.name) {
+    parameters.push(currentParam as ToolParameter);
+  }
+
+  return { description, parameters };
+}
+
+/** Parse [a, b, c] inline array syntax. */
+function parseInlineArray(value: string): string[] {
+  const inner = value.replace(/^\[/, '').replace(/\]$/, '');
+  return inner.split(',').map(s => s.trim()).filter(Boolean);
+}
+
+/** Parse a scalar value (number, boolean, or string). */
+function parseScalar(value: string): unknown {
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+  const num = Number(value);
+  if (!isNaN(num) && value !== '') return num;
+  return value;
 }
 
 // =============================================================================

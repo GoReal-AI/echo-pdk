@@ -383,6 +383,18 @@ function generateTypeScriptData(lang: LangDefinition): string {
       snippet: '[#-- ${1:comment} --]',
       description: 'Comment block',
     },
+    {
+      name: 'ROLE block',
+      trigger: '[#ROLE',
+      snippet: '[#ROLE ${1|system,user,assistant|}]\\n$0\\n[END ROLE]',
+      description: 'Message role block',
+    },
+    {
+      name: 'TOOL definition',
+      trigger: '[#TOOL',
+      snippet: '[#TOOL ${1:tool_name}]\\ndescription: ${2:What this tool does}\\nparameters:\\n  ${3:param_name}:\\n    type: ${4:string}\\n    description: ${5:Parameter description}\\n    required: true\\n[END TOOL]',
+      description: 'Tool/function definition',
+    },
   ];
 
   return `/**

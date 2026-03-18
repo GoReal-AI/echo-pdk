@@ -14,6 +14,7 @@ import type {
 } from './types.js';
 import { createOpenAIProvider, OPENAI_INFO } from './openai.js';
 import { createAnthropicProvider, ANTHROPIC_INFO } from './anthropic.js';
+import { createGoogleProvider, GOOGLE_INFO } from './google.js';
 
 // =============================================================================
 // REGISTRY
@@ -23,12 +24,14 @@ import { createAnthropicProvider, ANTHROPIC_INFO } from './anthropic.js';
 const PROVIDERS: Record<ProviderType, ProviderInfo> = {
   openai: OPENAI_INFO,
   anthropic: ANTHROPIC_INFO,
+  google: GOOGLE_INFO,
 };
 
 /** Factory functions for each provider. */
 const FACTORIES: Record<ProviderType, (config: ProviderConfig) => AIProviderInstance> = {
   openai: createOpenAIProvider,
   anthropic: createAnthropicProvider,
+  google: createGoogleProvider,
 };
 
 /** Set of valid provider type strings for runtime validation. */

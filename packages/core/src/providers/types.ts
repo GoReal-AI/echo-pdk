@@ -14,7 +14,7 @@
  * Supported AI provider types.
  * Adding a new provider = add to this union + implement factory.
  */
-export type ProviderType = 'openai' | 'anthropic';
+export type ProviderType = 'openai' | 'anthropic' | 'google';
 
 /**
  * Provider metadata for discovery.
@@ -87,11 +87,25 @@ export interface ChatMessage {
 }
 
 /**
+ * A tool call returned by the LLM.
+ */
+export interface ToolCall {
+  /** Tool call ID (for sending tool results back) */
+  id: string;
+  /** Tool/function name */
+  name: string;
+  /** Parsed arguments */
+  arguments: Record<string, unknown>;
+}
+
+/**
  * Response from a completion call.
  */
 export interface CompletionResponse {
-  /** The response text */
+  /** The response text (may be empty if the model only returned tool calls) */
   text: string;
+  /** Tool calls requested by the model (if any) */
+  toolCalls?: ToolCall[];
   /** Token usage */
   tokens?: {
     prompt: number;
@@ -120,6 +134,8 @@ export interface CompletionOptions {
   temperature?: number;
   /** Maximum tokens in the response */
   maxTokens?: number;
+  /** Tool/function definitions (OpenAI format) */
+  tools?: import('../types.js').EchoToolDefinition[];
 }
 
 // =============================================================================

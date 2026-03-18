@@ -28,9 +28,13 @@ import type {
   ContextNode,
   ImportNode,
   IncludeNode,
+  MessageRole,
+  RoleNode,
   SectionNode,
   SourceLocation,
   TextNode,
+  ToolNode,
+  ToolParameter,
   VariableNode,
   VariableType,
 } from '../types.js';
@@ -181,6 +185,40 @@ export function createContextNode(
   };
 }
 
+/**
+ * Create a RoleNode.
+ */
+export function createRoleNode(
+  role: MessageRole,
+  body: ASTNode[],
+  location: SourceLocation
+): RoleNode {
+  return {
+    type: 'role',
+    role,
+    body,
+    location,
+  };
+}
+
+/**
+ * Create a ToolNode.
+ */
+export function createToolNode(
+  name: string,
+  description: string,
+  parameters: ToolParameter[],
+  location: SourceLocation
+): ToolNode {
+  return {
+    type: 'tool',
+    name,
+    description,
+    parameters,
+    location,
+  };
+}
+
 // =============================================================================
 // VISITOR PATTERN
 // =============================================================================
@@ -197,6 +235,8 @@ export interface ASTVisitor<T = void> {
   visitImport?(node: ImportNode): T;
   visitInclude?(node: IncludeNode): T;
   visitContext?(node: ContextNode): T;
+  visitRole?(node: RoleNode): T;
+  visitTool?(node: ToolNode): T;
 }
 
 /**
@@ -222,6 +262,10 @@ export function visitNode<T>(node: ASTNode, visitor: ASTVisitor<T>): T | undefin
       return visitor.visitInclude?.(node);
     case 'context':
       return visitor.visitContext?.(node);
+    case 'role':
+      return visitor.visitRole?.(node);
+    case 'tool':
+      return visitor.visitTool?.(node);
     default: {
       // Exhaustiveness check - TypeScript will error if a case is missing
       throw new Error(`Unknown node type: ${(node as ASTNode).type}`);
@@ -282,6 +326,10 @@ export function collectAiJudgeConditions(
     },
 
     visitSection(node: SectionNode) {
+      visitNodes(node.body, visitor);
+    },
+
+    visitRole(node: RoleNode) {
       visitNodes(node.body, visitor);
     },
   };
@@ -350,6 +398,14 @@ export function prettyPrint(ast: ASTNode[], indent = 0): string {
         break;
       case 'context':
         lines.push(`${pad}CONTEXT: #context(${node.path})`);
+        break;
+      case 'role':
+        lines.push(`${pad}ROLE: ${node.role}`);
+        lines.push(prettyPrint(node.body, indent + 1));
+        lines.push(`${pad}END ROLE`);
+        break;
+      case 'tool':
+        lines.push(`${pad}TOOL: ${node.name} (${node.parameters.length} params)`);
         break;
     }
   }

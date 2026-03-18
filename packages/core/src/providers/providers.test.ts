@@ -90,8 +90,8 @@ describe('Registry', () => {
   describe('getProviders', () => {
     it('should return all known providers', () => {
       const providers = getProviders();
-      expect(providers).toHaveLength(2);
-      expect(providers.map((p) => p.type)).toEqual(['openai', 'anthropic']);
+      expect(providers).toHaveLength(3);
+      expect(providers.map((p) => p.type)).toEqual(['openai', 'anthropic', 'google']);
     });
 
     it('should include required metadata for each provider', () => {

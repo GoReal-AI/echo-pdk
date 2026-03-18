@@ -178,6 +178,49 @@ export interface ContextNode extends BaseNode {
 }
 
 /**
+ * Message role block: [#ROLE system]...[END ROLE]
+ * Groups content under a specific LLM message role.
+ */
+export interface RoleNode extends BaseNode {
+  type: 'role';
+  /** The message role */
+  role: MessageRole;
+  /** The content of the role block */
+  body: ASTNode[];
+}
+
+/** Valid message roles for LLM APIs. */
+export type MessageRole = 'system' | 'user' | 'assistant';
+
+/**
+ * Tool definition block: [#TOOL name]...[END TOOL]
+ * Defines an LLM tool/function with a YAML-like body.
+ */
+export interface ToolNode extends BaseNode {
+  type: 'tool';
+  /** The tool/function name */
+  name: string;
+  /** Human-readable description */
+  description: string;
+  /** Parameter definitions */
+  parameters: ToolParameter[];
+}
+
+/**
+ * A single parameter in a tool definition.
+ */
+export interface ToolParameter {
+  name: string;
+  type: string; // 'string' | 'number' | 'boolean' | 'array' | 'object'
+  description?: string;
+  required?: boolean;
+  enum?: string[];
+  default?: unknown;
+  items?: { type: string };
+  properties?: ToolParameter[];
+}
+
+/**
  * Union type of all possible AST nodes.
  */
 export type ASTNode =
@@ -187,7 +230,9 @@ export type ASTNode =
   | SectionNode
   | ImportNode
   | IncludeNode
-  | ContextNode;
+  | ContextNode
+  | RoleNode
+  | ToolNode;
 
 // =============================================================================
 // OPERATOR TYPES
@@ -335,6 +380,42 @@ export type ContentBlock = TextContentBlock | ImageUrlContentBlock;
 export type MultimodalContent = ContentBlock[];
 
 // =============================================================================
+// STRUCTURED RENDER RESULT (Messages + Tools)
+// =============================================================================
+
+/**
+ * A single message in a rendered prompt.
+ * Compatible with OpenAI/Anthropic message formats.
+ */
+export interface EchoMessage {
+  role: MessageRole;
+  content: ContentBlock[];
+}
+
+/**
+ * A tool/function definition in OpenAI-compatible format.
+ */
+export interface EchoToolDefinition {
+  type: 'function';
+  function: {
+    name: string;
+    description: string;
+    parameters: Record<string, unknown>; // JSON Schema
+  };
+}
+
+/**
+ * Result of rendering a template with roles and tools.
+ * Returned by `renderMessages()`.
+ */
+export interface RenderResult {
+  messages: EchoMessage[];
+  tools: EchoToolDefinition[];
+  /** Resolved model configuration from meta template (if provided). */
+  meta: Record<string, unknown>;
+}
+
+// =============================================================================
 // RESULTS & ERRORS
 // =============================================================================
 
@@ -453,6 +534,40 @@ export interface Echo {
    * ```
    */
   renderMultimodal(template: string, context: Record<string, unknown>): Promise<MultimodalContent>;
+
+  /**
+   * Render a template to structured messages, tool definitions, and model config.
+   * This is the primary rendering method for multi-role templates with tools.
+   *
+   * - [#ROLE] blocks become separate messages
+   * - [#TOOL] blocks become OpenAI-compatible tool definitions
+   * - Templates without roles default to a single user message
+   * - Optional meta template is rendered and parsed as key:value config
+   *
+   * @param template - The Echo template string (prompt)
+   * @param context - Variables to substitute
+   * @param options - Optional: metaTemplate for dynamic model config
+   * @returns RenderResult with messages, tools, and meta
+   *
+   * @example
+   * ```typescript
+   * const result = await echo.renderMessages(promptTemplate, context, {
+   *   metaTemplate: `provider: google
+   * [#IF {{token_count}} #gt(200000)]
+   * model: gemini-3.1-pro
+   * [ELSE]
+   * model: gemini-2.5-flash
+   * [END IF]
+   * temperature: {{temp ?? 0.7}}`
+   * });
+   * // result.meta = { provider: "google", model: "gemini-3.1-pro", temperature: 0.7 }
+   * ```
+   */
+  renderMessages(
+    template: string,
+    context: Record<string, unknown>,
+    options?: { metaTemplate?: string },
+  ): Promise<RenderResult>;
 
   /**
    * Validate a template for syntax and semantic errors.

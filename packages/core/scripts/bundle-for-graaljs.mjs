@@ -30,9 +30,12 @@ async function bundle() {
       'process.env': '{}',
       'process': '{"env":{}}',
     },
-    // Stub out crypto - only used for AI judge caching which we skip in Java
+    // Stub out Node.js built-ins not available in GraalJS
     alias: {
       'crypto': join(__dirname, 'stubs', 'crypto.mjs'),
+      'fs/promises': join(__dirname, 'stubs', 'fs-promises.mjs'),
+      'fs': join(__dirname, 'stubs', 'fs.mjs'),
+      'path': join(__dirname, 'stubs', 'path.mjs'),
     },
   });
 
@@ -142,6 +145,8 @@ var echoPdk = {
           }
         } else if (node.type === 'section') {
           visit(node.body);
+        } else if (node.type === 'role') {
+          visit(node.body);
         }
       }
     }
@@ -205,6 +210,39 @@ var echoPdk = {
    */
   runPrompt: function(options) {
     return EchoPDK.runPrompt(options);
+  },
+
+  /**
+   * Render a template to structured messages, tool definitions, and meta config (async).
+   * Returns { messages: [{ role, content }], tools: [{ type, function }], meta: {} }.
+   * @param {string} template - The Echo DSL template with [#ROLE] and [#TOOL] blocks
+   * @param {Object} context - Variables to substitute
+   * @param {Object} [config] - Optional configuration (may include metaTemplate)
+   * @returns {Promise<Object>} - { messages, tools, meta }
+   */
+  renderMessages: function(template, context, config) {
+    var metaTemplate = config && config.metaTemplate;
+    var echoConfig = {};
+    if (config) {
+      Object.keys(config).forEach(function(k) {
+        if (k !== 'metaTemplate') echoConfig[k] = config[k];
+      });
+    }
+    var echo = EchoPDK.createEcho(echoConfig);
+    var options = metaTemplate ? { metaTemplate: metaTemplate } : undefined;
+    return echo.renderMessages(template, context || {}, options).then(function(result) {
+      // Simplify content blocks to plain strings for Java interop
+      return {
+        messages: result.messages.map(function(m) {
+          var text = m.content.map(function(b) {
+            return b.type === 'text' ? b.text : '';
+          }).join('');
+          return { role: m.role, content: text };
+        }),
+        tools: result.tools,
+        meta: result.meta || {}
+      };
+    });
   }
 };
 `;

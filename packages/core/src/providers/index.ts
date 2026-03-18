@@ -14,6 +14,7 @@ export type {
   ChatMessage,
   CompletionResponse,
   CompletionOptions,
+  ToolCall,
   AIProviderInstance,
 } from './types.js';
 
@@ -29,6 +30,7 @@ export {
 // Provider factories (for direct use)
 export { createOpenAIProvider } from './openai.js';
 export { createAnthropicProvider } from './anthropic.js';
+export { createGoogleProvider } from './google.js';
 
 // High-level API
 export { runPrompt } from './run-prompt.js';

@@ -11,9 +11,10 @@
 
 import { parse } from '../parser/parser.js';
 import { evaluate } from '../evaluator/index.js';
-import { render, formatErrors } from '../renderer/renderer.js';
+import { render, renderMessages, formatErrors } from '../renderer/renderer.js';
 import { createProvider } from './registry.js';
 import type { ProviderConfig, CompletionResponse } from './types.js';
+import type { RenderResult } from '../types.js';
 
 // =============================================================================
 // TYPES
@@ -43,6 +44,8 @@ export interface RunPromptOptions {
 export interface RunPromptResult {
   /** The rendered prompt (after template + variable resolution) */
   renderedPrompt: string;
+  /** The structured render result (messages + tools) */
+  renderResult: RenderResult;
   /** The LLM completion response */
   response: CompletionResponse;
 }
@@ -94,28 +97,41 @@ export async function runPrompt(options: RunPromptOptions): Promise<RunPromptRes
   // 2. Evaluate (resolve conditionals with the given variables)
   const { ast: evaluatedAst } = await evaluate(parseResult.ast, variables, {});
 
-  // 3. Render
-  const renderedPrompt = render(evaluatedAst, {
+  // 3. Render to structured messages + tools
+  const renderOpts = {
     context: variables,
     config: {},
     trim: false,
     collapseNewlines: true,
-  });
+  };
+  const renderResult = renderMessages(evaluatedAst, renderOpts);
+
+  // Also get flat string for backward compat
+  const renderedPrompt = render(evaluatedAst, renderOpts);
 
   // 4. Create provider and send to LLM
   const instance = createProvider(providerConfig);
 
-  const messages = [];
-  if (systemMessage) {
-    messages.push({ role: 'system' as const, content: systemMessage });
+  // Build messages: use structured roles if available, otherwise legacy
+  const messages = renderResult.messages.map(m => {
+    const first = m.content[0];
+    const content = m.content.length === 1 && first && first.type === 'text'
+      ? first.text  // Simple string for single text block
+      : m.content;
+    return { role: m.role, content };
+  });
+
+  // Prepend systemMessage option if provided and no system role in template
+  if (systemMessage && !renderResult.messages.some(m => m.role === 'system')) {
+    messages.unshift({ role: 'system' as const, content: systemMessage });
   }
-  messages.push({ role: 'user' as const, content: renderedPrompt });
 
   const response = await instance.complete(messages, {
     model: providerConfig.model,
     temperature: options.temperature,
     maxTokens: options.maxTokens,
+    tools: renderResult.tools.length > 0 ? renderResult.tools : undefined,
   });
 
-  return { renderedPrompt, response };
+  return { renderedPrompt, renderResult, response };
 }

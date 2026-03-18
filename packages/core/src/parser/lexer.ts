@@ -86,6 +86,22 @@ export const EndSection = createToken({
 });
 
 /**
+ * [END ROLE] - End of role block
+ */
+export const EndRole = createToken({
+  name: 'EndRole',
+  pattern: /\[END ROLE\]/,
+});
+
+/**
+ * [END TOOL] - End of tool definition
+ */
+export const EndTool = createToken({
+  name: 'EndTool',
+  pattern: /\[END TOOL\]/,
+});
+
+/**
  * [ELSE] - Else branch (complete token)
  */
 export const Else = createToken({
@@ -121,6 +137,24 @@ export const ElseIf = createToken({
 export const SectionOpen = createToken({
   name: 'SectionOpen',
   pattern: /\[#SECTION/,
+  push_mode: 'DIRECTIVE_MODE',
+});
+
+/**
+ * [#ROLE - Role block (followed by role name: system, user, assistant)
+ */
+export const RoleOpen = createToken({
+  name: 'RoleOpen',
+  pattern: /\[#ROLE/,
+  push_mode: 'DIRECTIVE_MODE',
+});
+
+/**
+ * [#TOOL - Tool definition (followed by tool name)
+ */
+export const ToolOpen = createToken({
+  name: 'ToolOpen',
+  pattern: /\[#TOOL/,
   push_mode: 'DIRECTIVE_MODE',
 });
 
@@ -402,12 +436,16 @@ const defaultModeTokens: TokenType[] = [
   // Complete directive tokens (no mode change)
   EndIf,
   EndSection,
+  EndRole,
+  EndTool,
   Else,
 
   // Directive openers (push to DIRECTIVE_MODE)
   IfOpen,
   ElseIf,
   SectionOpen,
+  RoleOpen,
+  ToolOpen,
   Import,
   Include,
 

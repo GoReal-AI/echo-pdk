@@ -13,6 +13,7 @@ import type {
   ModelInfo,
   ProviderConfig,
   ProviderInfo,
+  ToolCall,
 } from './types.js';
 import {
   fetchWithTimeout,
@@ -41,7 +42,14 @@ export const OPENAI_INFO: ProviderInfo = Object.freeze({
 
 interface OpenAIChatResponse {
   choices: Array<{
-    message: { content: string | null };
+    message: {
+      content: string | null;
+      tool_calls?: Array<{
+        id: string;
+        type: 'function';
+        function: { name: string; arguments: string };
+      }>;
+    };
   }>;
   usage?: {
     prompt_tokens: number;
@@ -106,6 +114,9 @@ export function createOpenAIProvider(config: ProviderConfig): AIProviderInstance
       if (options?.maxTokens !== undefined) {
         body.max_tokens = options.maxTokens;
       }
+      if (options?.tools && options.tools.length > 0) {
+        body.tools = options.tools;
+      }
 
       const response = await fetchWithTimeout(
         `${baseUrl}/v1/chat/completions`,
@@ -122,10 +133,22 @@ export function createOpenAIProvider(config: ProviderConfig): AIProviderInstance
       }
 
       const data = (await response.json()) as OpenAIChatResponse;
-      const text = data.choices[0]?.message?.content ?? '';
+      const message = data.choices[0]?.message;
+      const text = message?.content ?? '';
+
+      // Parse tool calls if present
+      let toolCalls: ToolCall[] | undefined;
+      if (message?.tool_calls && message.tool_calls.length > 0) {
+        toolCalls = message.tool_calls.map((tc) => ({
+          id: tc.id,
+          name: tc.function.name,
+          arguments: JSON.parse(tc.function.arguments),
+        }));
+      }
 
       return {
         text,
+        toolCalls,
         tokens: data.usage
           ? {
               prompt: data.usage.prompt_tokens,
