@@ -1,6 +1,6 @@
 {
   "name": "@goreal-ai/echo-pdk",
-  "version": "0.10.0",
+  "version": "0.10.1",
   "description": "Echo PDK core rendering engine - parser, evaluator, and renderer",
   "type": "module",
   "main": "./dist/index.js",
@@ -39,7 +39,7 @@
   "homepage": "https://github.com/GoReal-AI/echo-pdk#readme",
   "author": "GoReal.AI",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && node scripts/bundle-for-graaljs.mjs",
     "build:graaljs": "node scripts/bundle-for-graaljs.mjs",
     "dev": "tsc --watch",
     "test": "vitest run",
