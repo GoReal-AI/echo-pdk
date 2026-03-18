@@ -919,10 +919,10 @@ function getCstChildren<T>(ctx: CstNode, expectedRule?: string): T {
  */
 export function getTokenLocation(token: IToken): SourceLocation {
   return {
-    startLine: token.startLine ?? 1,
-    startColumn: token.startColumn ?? 1,
-    endLine: token.endLine ?? 1,
-    endColumn: token.endColumn ?? 1,
+    startLine: token.startLine != null && !isNaN(token.startLine) ? token.startLine : 1,
+    startColumn: token.startColumn != null && !isNaN(token.startColumn) ? token.startColumn : 1,
+    endLine: token.endLine != null && !isNaN(token.endLine) ? token.endLine : (token.startLine != null && !isNaN(token.startLine) ? token.startLine : 1),
+    endColumn: token.endColumn != null && !isNaN(token.endColumn) ? token.endColumn : 1,
     source: token.image,
   };
 }
