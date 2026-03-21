@@ -30,6 +30,8 @@ import type {
   ConditionalNode,
   ConditionExpr,
   EchoError,
+  JsonSchema,
+  JsonSchemaProperty,
   ParseResult,
   SourceLocation,
   ToolParameter,
@@ -46,6 +48,7 @@ import {
   EndIf,
   EndRole,
   EndSection,
+  EndSchema,
   EndTool,
   Equals,
   formatLexerErrors,
@@ -59,6 +62,7 @@ import {
   OperatorArgText,
   RoleOpen,
   RParen,
+  SchemaStart,
   SectionOpen,
   StringLiteral,
   Text,
@@ -74,6 +78,7 @@ import {
   createImportNode,
   createIncludeNode,
   createRoleNode,
+  createSchemaNode,
   createSectionNode,
   createTextNode,
   createToolNode,
@@ -114,7 +119,7 @@ class EchoParser extends CstParser {
   });
 
   /**
-   * A node can be text, variable, conditional, section, role, tool, import, include, or context
+   * A node can be text, variable, conditional, section, role, tool, schema, import, include, or context
    */
   private node = this.RULE('node', () => {
     this.OR([
@@ -124,6 +129,7 @@ class EchoParser extends CstParser {
       { ALT: () => this.SUBRULE(this.sectionNode) },
       { ALT: () => this.SUBRULE(this.roleNode) },
       { ALT: () => this.SUBRULE(this.toolNode) },
+      { ALT: () => this.SUBRULE(this.schemaNode) },
       { ALT: () => this.SUBRULE(this.importNode) },
       { ALT: () => this.SUBRULE(this.includeNode) },
       { ALT: () => this.SUBRULE(this.contextNode) },
@@ -311,6 +317,24 @@ class EchoParser extends CstParser {
 
     this.CONSUME(EndTool);
   });
+
+  /**
+   * Schema definition: [#SCHEMA]...[END SCHEMA]
+   *
+   * The body between [#SCHEMA] and [END SCHEMA] is captured as Text tokens
+   * and parsed as YAML-like structured data by the visitor.
+   * This is a static block — no variables or conditions allowed inside.
+   */
+  private schemaNode = this.RULE('schemaNode', () => {
+    this.CONSUME(SchemaStart);
+
+    // Body is raw text tokens (YAML-like content)
+    this.MANY(() => {
+      this.CONSUME(Text);
+    });
+
+    this.CONSUME(EndSchema);
+  });
 }
 
 // =============================================================================
@@ -395,6 +419,9 @@ class EchoAstVisitor extends BaseCstVisitor {
     }
     if (ctx.toolNode?.[0]) {
       return this.visit(ctx.toolNode[0]);
+    }
+    if (ctx.schemaNode?.[0]) {
+      return this.visit(ctx.schemaNode[0]);
     }
     return undefined;
   }
@@ -760,6 +787,25 @@ class EchoAstVisitor extends BaseCstVisitor {
 
     return createToolNode(name, description, parameters, location);
   }
+
+  /**
+   * Visit a schema node.
+   * Collects raw text body and parses as YAML-like schema definition.
+   */
+  schemaNode(ctx: CstSchemaNodeContext): ASTNode {
+    const schemaStartToken = ctx.SchemaStart?.[0];
+    const endSchemaToken = ctx.EndSchema?.[0];
+
+    // Collect all text tokens as the schema body
+    const bodyText = (ctx.Text ?? []).map(t => t.image).join('');
+    const schema = parseSchemaBody(bodyText);
+
+    const location = schemaStartToken && endSchemaToken
+      ? mergeLocations(getTokenLocation(schemaStartToken), getTokenLocation(endSchemaToken))
+      : defaultLocation;
+
+    return createSchemaNode(schema, location);
+  }
 }
 
 // Create singleton visitor instance
@@ -780,6 +826,7 @@ interface CstNodeContext {
   sectionNode?: CstNode[];
   roleNode?: CstNode[];
   toolNode?: CstNode[];
+  schemaNode?: CstNode[];
   importNode?: CstNode[];
   includeNode?: CstNode[];
   contextNode?: CstNode[];
@@ -872,6 +919,12 @@ interface CstToolNodeContext {
   EndTool?: IToken[];
   CloseBracket?: IToken[];
   Identifier?: IToken[];
+  Text?: IToken[];
+}
+
+interface CstSchemaNodeContext {
+  SchemaStart?: IToken[];
+  EndSchema?: IToken[];
   Text?: IToken[];
 }
 
@@ -1084,6 +1137,90 @@ function parseToolBody(text: string): { description: string; parameters: ToolPar
   return { description, parameters };
 }
 
+/**
+ * Parse YAML-like schema body text into a JSON Schema object.
+ *
+ * Expected format (top-level properties, no nesting of "parameters:" wrapper):
+ *   property_name:
+ *     type: string
+ *     description: Property description
+ *     required: true
+ *     enum: [a, b, c]
+ *
+ * This reuses the same YAML-like parsing approach as parseToolBody.
+ */
+function parseSchemaBody(text: string): JsonSchema {
+  const lines = text.split('\n');
+  const properties: Record<string, JsonSchemaProperty> = {};
+  const required: string[] = [];
+
+  let currentProp: { name: string; prop: JsonSchemaProperty; isRequired?: boolean } | null = null;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+
+    const indent = line.search(/\S/);
+
+    // Top-level property name (no indent or minimal indent, ends with colon, no spaces in name)
+    if (indent <= 2 && trimmed.endsWith(':') && !trimmed.includes(' ')) {
+      // Save previous property
+      if (currentProp) {
+        properties[currentProp.name] = currentProp.prop;
+        if (currentProp.isRequired) {
+          required.push(currentProp.name);
+        }
+      }
+      currentProp = {
+        name: trimmed.slice(0, -1),
+        prop: { type: 'string' }, // default type
+      };
+      continue;
+    }
+
+    // Property attributes (indented under a property name)
+    if (currentProp && indent >= 2) {
+      const colonIdx = trimmed.indexOf(':');
+      if (colonIdx > 0) {
+        const key = trimmed.slice(0, colonIdx).trim();
+        const value = trimmed.slice(colonIdx + 1).trim();
+
+        switch (key) {
+          case 'type':
+            currentProp.prop.type = value;
+            break;
+          case 'description':
+            currentProp.prop.description = value;
+            break;
+          case 'required':
+            currentProp.isRequired = value === 'true';
+            break;
+          case 'enum':
+            currentProp.prop.enum = parseInlineArray(value);
+            break;
+          case 'default':
+            currentProp.prop.default = parseScalar(value);
+            break;
+        }
+      }
+    }
+  }
+
+  // Push last property
+  if (currentProp) {
+    properties[currentProp.name] = currentProp.prop;
+    if (currentProp.isRequired) {
+      required.push(currentProp.name);
+    }
+  }
+
+  return {
+    type: 'object',
+    properties,
+    ...(required.length > 0 && { required }),
+  };
+}
+
 /** Parse [a, b, c] inline array syntax. */
 function parseInlineArray(value: string): string[] {
   const inner = value.replace(/^\[/, '').replace(/\]$/, '');
@@ -1097,6 +1234,74 @@ function parseScalar(value: string): unknown {
   const num = Number(value);
   if (!isNaN(num) && value !== '') return num;
   return value;
+}
+
+// =============================================================================
+// SCHEMA VALIDATION
+// =============================================================================
+
+/**
+ * Validate schema constraints:
+ * 1. Only one schema per template
+ * 2. Schema cannot be inside a conditional
+ * 3. Conditionals cannot be inside schema (enforced by grammar — schema body is Text only)
+ */
+function validateSchemaConstraints(ast: ASTNode[]): EchoError[] {
+  const errors: EchoError[] = [];
+  let schemaCount = 0;
+
+  // Check top-level for multiple schemas
+  for (const node of ast) {
+    if (node.type === 'schema') {
+      schemaCount++;
+      if (schemaCount > 1) {
+        errors.push({
+          code: 'MULTIPLE_SCHEMAS',
+          message: 'Only one [#SCHEMA] block is allowed per template',
+          location: node.location,
+        });
+      }
+    }
+  }
+
+  // Check for schema inside conditionals (recursive)
+  checkSchemaInsideConditionals(ast, errors);
+
+  return errors;
+}
+
+/**
+ * Recursively check that no schema nodes appear inside conditional branches.
+ */
+function checkSchemaInsideConditionals(nodes: ASTNode[], errors: EchoError[], insideConditional = false): void {
+  for (const node of nodes) {
+    if (node.type === 'schema' && insideConditional) {
+      errors.push({
+        code: 'SCHEMA_INSIDE_CONDITIONAL',
+        message: '[#SCHEMA] block cannot be inside a conditional ([#IF]...[END IF])',
+        location: node.location,
+      });
+    }
+
+    if (node.type === 'conditional') {
+      checkSchemaInsideConditionals(node.consequent, errors, true);
+      if (node.alternate) {
+        if (Array.isArray(node.alternate)) {
+          checkSchemaInsideConditionals(node.alternate, errors, true);
+        } else {
+          checkSchemaInsideConditionals([node.alternate], errors, true);
+        }
+      }
+    }
+
+    if (node.type === 'role') {
+      checkSchemaInsideConditionals(node.body, errors, insideConditional);
+    }
+
+    if (node.type === 'section') {
+      checkSchemaInsideConditionals(node.body, errors, insideConditional);
+    }
+  }
 }
 
 // =============================================================================
@@ -1147,6 +1352,15 @@ export function parse(template: string): ParseResult {
   // Step 3: Transform CST to AST
   try {
     const ast = astVisitor.visit(cst) as ASTNode[];
+
+    // Step 4: Validate schema constraints
+    const schemaErrors = validateSchemaConstraints(ast);
+    if (schemaErrors.length > 0) {
+      return {
+        success: false,
+        errors: schemaErrors,
+      };
+    }
 
     return {
       success: true,

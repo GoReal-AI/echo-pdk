@@ -28,8 +28,10 @@ import type {
   ContextNode,
   ImportNode,
   IncludeNode,
+  JsonSchema,
   MessageRole,
   RoleNode,
+  SchemaNode,
   SectionNode,
   SourceLocation,
   TextNode,
@@ -219,6 +221,20 @@ export function createToolNode(
   };
 }
 
+/**
+ * Create a SchemaNode.
+ */
+export function createSchemaNode(
+  schema: JsonSchema,
+  location: SourceLocation
+): SchemaNode {
+  return {
+    type: 'schema',
+    schema,
+    location,
+  };
+}
+
 // =============================================================================
 // VISITOR PATTERN
 // =============================================================================
@@ -237,6 +253,7 @@ export interface ASTVisitor<T = void> {
   visitContext?(node: ContextNode): T;
   visitRole?(node: RoleNode): T;
   visitTool?(node: ToolNode): T;
+  visitSchema?(node: SchemaNode): T;
 }
 
 /**
@@ -266,6 +283,8 @@ export function visitNode<T>(node: ASTNode, visitor: ASTVisitor<T>): T | undefin
       return visitor.visitRole?.(node);
     case 'tool':
       return visitor.visitTool?.(node);
+    case 'schema':
+      return visitor.visitSchema?.(node);
     default: {
       // Exhaustiveness check - TypeScript will error if a case is missing
       throw new Error(`Unknown node type: ${(node as ASTNode).type}`);
@@ -406,6 +425,9 @@ export function prettyPrint(ast: ASTNode[], indent = 0): string {
         break;
       case 'tool':
         lines.push(`${pad}TOOL: ${node.name} (${node.parameters.length} params)`);
+        break;
+      case 'schema':
+        lines.push(`${pad}SCHEMA: (${Object.keys(node.schema.properties).length} properties)`);
         break;
     }
   }

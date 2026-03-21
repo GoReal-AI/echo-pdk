@@ -221,6 +221,40 @@ export interface ToolParameter {
 }
 
 /**
+ * Schema definition block: [#SCHEMA]...[END SCHEMA]
+ * Defines a JSON Schema for structured LLM output.
+ * This is a static block — no variables or conditions allowed inside.
+ * Only one schema per template.
+ */
+export interface SchemaNode extends BaseNode {
+  type: 'schema';
+  /** The parsed JSON Schema object */
+  schema: JsonSchema;
+}
+
+/**
+ * JSON Schema object for structured LLM output.
+ * Provider-agnostic standard JSON Schema format.
+ */
+export interface JsonSchema {
+  type: 'object';
+  properties: Record<string, JsonSchemaProperty>;
+  required?: string[];
+}
+
+/**
+ * A single property in a JSON Schema.
+ */
+export interface JsonSchemaProperty {
+  type: string;
+  description?: string;
+  enum?: string[];
+  default?: unknown;
+  items?: { type: string };
+  properties?: Record<string, JsonSchemaProperty>;
+}
+
+/**
  * Union type of all possible AST nodes.
  */
 export type ASTNode =
@@ -232,7 +266,8 @@ export type ASTNode =
   | IncludeNode
   | ContextNode
   | RoleNode
-  | ToolNode;
+  | ToolNode
+  | SchemaNode;
 
 // =============================================================================
 // OPERATOR TYPES
@@ -413,6 +448,8 @@ export interface RenderResult {
   tools: EchoToolDefinition[];
   /** Resolved model configuration from meta template (if provided). */
   meta: Record<string, unknown>;
+  /** JSON Schema for structured LLM output (if [#SCHEMA] block is defined). */
+  schema?: JsonSchema;
 }
 
 // =============================================================================

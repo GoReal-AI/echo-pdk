@@ -120,6 +120,39 @@ syntax:
       trigger: "[#TOOL"
       snippet: "[#TOOL ${1:tool_name}]\ndescription: ${2:what this tool does}\nparameters:\n  ${3:param_name}:\n    type: ${4|string,number,boolean,array|}\n    description: ${5:param description}\n    required: ${6|true,false|}\n[END TOOL]"
 
+  # Schema definition — declare JSON Schema for structured LLM output
+  schema:
+    open: "[#SCHEMA]"
+    close: "[END SCHEMA]"
+    body:
+      format: yaml
+      fields:
+        - name: "<property_name>"
+          type: object
+          description: "Each top-level key is a schema property with type, description, required, enum"
+    description: "Schema definition — declares a JSON Schema for structured LLM output"
+    notes: |
+      Schema is a STATIC block — no variable interpolation or conditions allowed inside.
+      Only one schema per template.
+      Output is standard JSON Schema (provider-agnostic).
+    examples:
+      - |
+        [#SCHEMA]
+        summary:
+          type: string
+          description: Brief summary of the content
+          required: true
+        sentiment:
+          type: string
+          enum: [positive, negative, neutral]
+          required: true
+        confidence:
+          type: number
+        [END SCHEMA]
+    autocomplete:
+      trigger: "[#SCHEMA"
+      snippet: "[#SCHEMA]\n${1:property_name}:\n  type: ${2|string,number,boolean,array,object|}\n  description: ${3:property description}\n  required: ${4|true,false|}\n[END SCHEMA]"
+
   # Context directive - reference files/images from Context Store
   context:
     pattern: "#context\\(([^)]+)\\)"
@@ -242,6 +275,16 @@ operators:
       trigger: "#ex"
       snippet: "#exists"
 
+  not_exists:
+    type: unary
+    aliases: [doesnt_exist]
+    signature: "() => boolean"
+    description: "Check if variable is undefined, null, or empty (negation of #exists)"
+    example: "{{user.preferences}} #not_exists"
+    autocomplete:
+      trigger: "#not"
+      snippet: "#not_exists"
+
   # AI operators
   ai_gate:
     type: ai
@@ -306,6 +349,21 @@ validation:
     level: error
     description: "Flag tool definitions with empty names"
     message: "Tool name is required"
+
+  multipleSchemas:
+    level: error
+    description: "Flag templates with more than one [#SCHEMA] block"
+    message: "Only one [#SCHEMA] block is allowed per template"
+
+  schemaInsideConditional:
+    level: error
+    description: "Flag [#SCHEMA] blocks inside conditionals"
+    message: "[#SCHEMA] block cannot be inside a conditional"
+
+  unclosedSchemaBlocks:
+    level: error
+    description: "Flag unclosed [#SCHEMA] blocks"
+    message: "Unclosed schema block starting at line {{line}}"
 
   unusedSections:
     level: warning

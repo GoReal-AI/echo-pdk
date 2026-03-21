@@ -103,6 +103,28 @@ export const existsOperator: OperatorDefinition = {
 };
 
 /**
+ * #not_exists - Check if value is undefined, null, or empty (negation of #exists)
+ *
+ * @example {{user.preferences}} #not_exists
+ */
+export const notExistsOperator: OperatorDefinition = {
+  type: 'unary',
+  description: 'Check if variable is undefined, null, or empty',
+  example: '{{user.preferences}} #not_exists',
+  autocomplete: {
+    trigger: '#not',
+    snippet: '#not_exists',
+  },
+  handler: (value: unknown): boolean => {
+    if (value === undefined || value === null) return true;
+    if (typeof value === 'string') return value.length === 0;
+    if (Array.isArray(value)) return value.length === 0;
+    if (typeof value === 'object') return Object.keys(value).length === 0;
+    return false;
+  },
+};
+
+/**
  * #matches - Regex pattern match
  *
  * @example {{email}} #matches(.*@.*)
@@ -301,6 +323,8 @@ export const builtinOperators: Record<string, OperatorDefinition> = {
   equals: equalsOperator,
   contains: containsOperator,
   exists: existsOperator,
+  not_exists: notExistsOperator,
+  doesnt_exist: notExistsOperator,
   matches: matchesOperator,
   greater_than: gtOperator,
   greater_than_or_equal: gteOperator,

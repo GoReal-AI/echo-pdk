@@ -222,17 +222,15 @@ var echoPdk = {
    */
   renderMessages: function(template, context, config) {
     var metaTemplate = config && config.metaTemplate;
-    var echoConfig = {};
-    if (config) {
-      Object.keys(config).forEach(function(k) {
-        if (k !== 'metaTemplate') echoConfig[k] = config[k];
-      });
-    }
+    // Pass config directly to createEcho (aiProvider, etc.) — don't copy keys
+    // metaTemplate is stripped since it's an option for renderMessages, not createEcho
+    var echoConfig = config ? Object.assign({}, config) : {};
+    delete echoConfig.metaTemplate;
     var echo = EchoPDK.createEcho(echoConfig);
     var options = metaTemplate ? { metaTemplate: metaTemplate } : undefined;
     return echo.renderMessages(template, context || {}, options).then(function(result) {
       // Simplify content blocks to plain strings for Java interop
-      return {
+      var simplified = {
         messages: result.messages.map(function(m) {
           var text = m.content.map(function(b) {
             return b.type === 'text' ? b.text : '';
@@ -242,6 +240,10 @@ var echoPdk = {
         tools: result.tools,
         meta: result.meta || {}
       };
+      if (result.schema) {
+        simplified.schema = result.schema;
+      }
+      return simplified;
     });
   }
 };

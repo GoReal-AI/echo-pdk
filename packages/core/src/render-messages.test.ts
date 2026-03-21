@@ -437,6 +437,167 @@ description: Helper tool
     });
   });
 
+  // ─── Schema ──────────────────────────────────────────────────────────────────
+
+  describe('schema', () => {
+    it('should parse a basic schema block', async () => {
+      const template = `[#ROLE user]
+Summarize this.
+[END ROLE]
+
+[#SCHEMA]
+summary:
+  type: string
+  description: brief summary
+  required: true
+[END SCHEMA]`;
+
+      const result = await echo().renderMessages(template, {});
+      expect(result.schema).toBeDefined();
+      expect(result.schema!.type).toBe('object');
+      expect(result.schema!.properties).toHaveProperty('summary');
+      expect(result.schema!.properties.summary.type).toBe('string');
+      expect(result.schema!.properties.summary.description).toBe('brief summary');
+      expect(result.schema!.required).toEqual(['summary']);
+    });
+
+    it('should parse schema with all property types (string, number, boolean, array, object)', async () => {
+      const template = `[#SCHEMA]
+name:
+  type: string
+age:
+  type: number
+active:
+  type: boolean
+tags:
+  type: array
+metadata:
+  type: object
+[END SCHEMA]`;
+
+      const result = await echo().renderMessages(template, {});
+      expect(result.schema).toBeDefined();
+      expect(result.schema!.properties.name.type).toBe('string');
+      expect(result.schema!.properties.age.type).toBe('number');
+      expect(result.schema!.properties.active.type).toBe('boolean');
+      expect(result.schema!.properties.tags.type).toBe('array');
+      expect(result.schema!.properties.metadata.type).toBe('object');
+    });
+
+    it('should parse schema with enum, required, and description', async () => {
+      const template = `[#SCHEMA]
+summary:
+  type: string
+  description: brief summary
+  required: true
+sentiment:
+  type: string
+  enum: [positive, negative, neutral]
+  required: true
+confidence:
+  type: number
+[END SCHEMA]`;
+
+      const result = await echo().renderMessages(template, {});
+      expect(result.schema).toBeDefined();
+      expect(result.schema!.properties.sentiment.enum).toEqual(['positive', 'negative', 'neutral']);
+      expect(result.schema!.required).toEqual(['summary', 'sentiment']);
+      expect(result.schema!.properties.confidence.type).toBe('number');
+      expect(result.schema!.required).not.toContain('confidence');
+    });
+
+    it('should error when schema is inside a conditional', async () => {
+      const template = `[#IF {{mode}} #exists]
+[#SCHEMA]
+result:
+  type: string
+[END SCHEMA]
+[END IF]`;
+
+      await expect(echo().renderMessages(template, { mode: 'yes' })).rejects.toThrow(
+        /SCHEMA.*cannot be inside a conditional/i
+      );
+    });
+
+    it('should error when multiple schemas are defined', async () => {
+      const template = `[#SCHEMA]
+a:
+  type: string
+[END SCHEMA]
+
+[#SCHEMA]
+b:
+  type: number
+[END SCHEMA]`;
+
+      await expect(echo().renderMessages(template, {})).rejects.toThrow(
+        /Only one.*SCHEMA.*allowed/i
+      );
+    });
+
+    it('should return schema from renderMessages alongside messages and tools', async () => {
+      const template = `[#ROLE system]
+You are helpful.
+[END ROLE]
+
+[#ROLE user]
+Analyze {{text}}
+[END ROLE]
+
+[#TOOL search]
+description: Search the web
+parameters:
+  query:
+    type: string
+    required: true
+[END TOOL]
+
+[#SCHEMA]
+summary:
+  type: string
+  required: true
+sentiment:
+  type: string
+  enum: [positive, negative, neutral]
+[END SCHEMA]`;
+
+      const result = await echo().renderMessages(template, { text: 'hello world' });
+
+      // Messages
+      expect(result.messages).toHaveLength(2);
+      expect(result.messages[0].role).toBe('system');
+      expect(result.messages[1].role).toBe('user');
+
+      // Tools
+      expect(result.tools).toHaveLength(1);
+      expect(result.tools[0].function.name).toBe('search');
+
+      // Schema
+      expect(result.schema).toBeDefined();
+      expect(result.schema!.properties.summary.type).toBe('string');
+      expect(result.schema!.properties.sentiment.enum).toEqual(['positive', 'negative', 'neutral']);
+      expect(result.schema!.required).toEqual(['summary']);
+    });
+
+    it('should return no schema when none is defined', async () => {
+      const result = await echo().renderMessages('[#ROLE user]\nHello\n[END ROLE]', {});
+      expect(result.schema).toBeUndefined();
+    });
+
+    it('should not render schema content as text', async () => {
+      const template = `Hello world
+[#SCHEMA]
+result:
+  type: string
+[END SCHEMA]`;
+
+      const e = createEcho();
+      const rendered = await e.render(template, {});
+      expect(rendered).not.toContain('type: string');
+      expect(rendered).toContain('Hello world');
+    });
+  });
+
   // ─── Edge Cases ─────────────────────────────────────────────────────────────
 
   describe('edge cases', () => {

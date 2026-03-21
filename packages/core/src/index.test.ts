@@ -114,6 +114,27 @@ describe('createEcho', () => {
       expect(result2).toBe('');
     });
 
+    it('should render #not_exists conditional (true when undefined)', async () => {
+      const echo = createEcho();
+      const template = '[#IF {{name}} #not_exists]No name provided[END IF]';
+      const result = await echo.render(template, {});
+      expect(result).toBe('No name provided');
+    });
+
+    it('should render #not_exists conditional (true when empty string)', async () => {
+      const echo = createEcho();
+      const template = '[#IF {{name}} #not_exists]No name provided[END IF]';
+      const result = await echo.render(template, { name: '' });
+      expect(result).toBe('No name provided');
+    });
+
+    it('should render #not_exists conditional (false when has value)', async () => {
+      const echo = createEcho();
+      const template = '[#IF {{name}} #not_exists]No name provided[ELSE]Has name[END IF]';
+      const result = await echo.render(template, { name: 'Alice' });
+      expect(result).toBe('Has name');
+    });
+
     it('should render nested conditionals', async () => {
       const echo = createEcho();
       const template = `[#IF {{a}} #exists]A[#IF {{b}} #exists]B[END IF][END IF]`;

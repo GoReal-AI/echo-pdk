@@ -433,6 +433,10 @@ async function evaluateNode(
       // Tool nodes pass through unchanged (static metadata)
       return [node];
 
+    case 'schema':
+      // Schema nodes pass through unchanged (static metadata)
+      return [node];
+
     default: {
       // Exhaustiveness check
       throw new Error(`Unknown node type: ${(node as ASTNode).type}`);

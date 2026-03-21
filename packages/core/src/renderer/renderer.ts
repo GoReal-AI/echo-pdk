@@ -27,6 +27,7 @@ import type {
   OperatorDefinition,
   RenderResult,
   RoleNode,
+  SchemaNode,
   TextNode,
   ToolNode,
   ToolParameter,
@@ -151,6 +152,10 @@ function renderNode(node: ASTNode, options: RenderOptions): string | undefined {
 
     case 'tool':
       // Tool definitions are not rendered as text — they're structural metadata
+      return undefined;
+
+    case 'schema':
+      // Schema definitions are not rendered as text — they're structural metadata
       return undefined;
 
     default: {
@@ -340,6 +345,10 @@ export function renderMultimodal(ast: ASTNode[], options: RenderOptions): Multim
         // Tool definitions are not rendered in multimodal content
         break;
 
+      case 'schema':
+        // Schema definitions are not rendered in multimodal content
+        break;
+
       default: {
         // Exhaustiveness check
         throw new Error(`Unknown node type: ${(node as ASTNode).type}`);
@@ -519,6 +528,7 @@ export function renderMessages(ast: ASTNode[], options: RenderOptions): RenderRe
 
   const roleNodes: RoleNode[] = [];
   const toolNodes: ToolNode[] = [];
+  const schemaNodes: SchemaNode[] = [];
   const looseNodes: ASTNode[] = [];
 
   for (const node of ast) {
@@ -526,6 +536,8 @@ export function renderMessages(ast: ASTNode[], options: RenderOptions): RenderRe
       roleNodes.push(node);
     } else if (node.type === 'tool') {
       toolNodes.push(node);
+    } else if (node.type === 'schema') {
+      schemaNodes.push(node);
     } else {
       looseNodes.push(node);
     }
@@ -564,7 +576,11 @@ export function renderMessages(ast: ASTNode[], options: RenderOptions): RenderRe
     tools.push(convertToolNode(toolNode));
   }
 
-  return { messages, tools, meta: {} };
+  // Extract schema (only first one — validation ensures at most one)
+  const firstSchema = schemaNodes[0];
+  const schema = firstSchema ? firstSchema.schema : undefined;
+
+  return { messages, tools, meta: {}, ...(schema && { schema }) };
 }
 
 /**

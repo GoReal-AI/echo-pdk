@@ -102,6 +102,14 @@ export const EndTool = createToken({
 });
 
 /**
+ * [END SCHEMA] - End of schema definition
+ */
+export const EndSchema = createToken({
+  name: 'EndSchema',
+  pattern: /\[END SCHEMA\]/,
+});
+
+/**
  * [ELSE] - Else branch (complete token)
  */
 export const Else = createToken({
@@ -156,6 +164,15 @@ export const ToolOpen = createToken({
   name: 'ToolOpen',
   pattern: /\[#TOOL/,
   push_mode: 'DIRECTIVE_MODE',
+});
+
+/**
+ * [#SCHEMA] - Schema definition (complete token, no mode switch needed)
+ * Unlike [#TOOL name], schema has no arguments so it's a complete token.
+ */
+export const SchemaStart = createToken({
+  name: 'SchemaStart',
+  pattern: /\[#SCHEMA\]/,
 });
 
 /**
@@ -438,6 +455,7 @@ const defaultModeTokens: TokenType[] = [
   EndSection,
   EndRole,
   EndTool,
+  EndSchema,
   Else,
 
   // Directive openers (push to DIRECTIVE_MODE)
@@ -446,6 +464,7 @@ const defaultModeTokens: TokenType[] = [
   SectionOpen,
   RoleOpen,
   ToolOpen,
+  SchemaStart,
   Import,
   Include,
 
@@ -564,10 +583,12 @@ export const allTokens: TokenType[] = [
   // Directive keywords
   EndIf,
   EndSection,
+  EndSchema,
   Else,
   IfOpen,
   ElseIf,
   SectionOpen,
+  SchemaStart,
   Import,
   Include,
 
