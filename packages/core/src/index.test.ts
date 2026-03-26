@@ -292,6 +292,14 @@ Suggest popular movies.
       expect(result.warnings.some((w) => w.code === 'IMPORT_NOT_RESOLVED')).toBe(true);
     });
 
+    it('should validate skill blocks successfully', () => {
+      const echo = createEcho();
+      const result = echo.validate('[#SKILL jira]\ndescription: Create tickets\nsource: echostash://skill-042\n[END SKILL]');
+
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
     it('should recognize custom operators registered via registerOperator', () => {
       const echo = createEcho({ strict: true });
 

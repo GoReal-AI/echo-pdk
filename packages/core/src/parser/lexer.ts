@@ -102,6 +102,14 @@ export const EndTool = createToken({
 });
 
 /**
+ * [END SKILL] - End of skill definition
+ */
+export const EndSkill = createToken({
+  name: 'EndSkill',
+  pattern: /\[END SKILL\]/,
+});
+
+/**
  * [END SCHEMA] - End of schema definition
  */
 export const EndSchema = createToken({
@@ -163,6 +171,15 @@ export const RoleOpen = createToken({
 export const ToolOpen = createToken({
   name: 'ToolOpen',
   pattern: /\[#TOOL/,
+  push_mode: 'DIRECTIVE_MODE',
+});
+
+/**
+ * [#SKILL - Skill definition (followed by skill name)
+ */
+export const SkillOpen = createToken({
+  name: 'SkillOpen',
+  pattern: /\[#SKILL/,
   push_mode: 'DIRECTIVE_MODE',
 });
 
@@ -455,6 +472,7 @@ const defaultModeTokens: TokenType[] = [
   EndSection,
   EndRole,
   EndTool,
+  EndSkill,
   EndSchema,
   Else,
 
@@ -464,6 +482,7 @@ const defaultModeTokens: TokenType[] = [
   SectionOpen,
   RoleOpen,
   ToolOpen,
+  SkillOpen,
   SchemaStart,
   Import,
   Include,
@@ -583,11 +602,17 @@ export const allTokens: TokenType[] = [
   // Directive keywords
   EndIf,
   EndSection,
+  EndRole,
+  EndTool,
+  EndSkill,
   EndSchema,
   Else,
   IfOpen,
   ElseIf,
   SectionOpen,
+  RoleOpen,
+  ToolOpen,
+  SkillOpen,
   SchemaStart,
   Import,
   Include,

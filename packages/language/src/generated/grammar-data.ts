@@ -19,7 +19,9 @@ export const KEYWORDS = [
   "ROLE",
   "END ROLE",
   "TOOL",
-  "END TOOL"
+  "END TOOL",
+  "SKILL",
+  "END SKILL"
 ] as const;
 
 export type Keyword = typeof KEYWORDS[number];
@@ -188,6 +190,19 @@ export const OPERATORS: OperatorDefinition[] = [
     }
   },
   {
+    "name": "not_exists",
+    "aliases": [
+      "doesnt_exist"
+    ],
+    "type": "unary",
+    "description": "Check if variable is undefined, null, or empty (negation of #exists)",
+    "example": "{{user.preferences}} #not_exists",
+    "autocomplete": {
+      "trigger": "#not",
+      "snippet": "#not_exists"
+    }
+  },
+  {
     "name": "ai_gate",
     "type": "ai",
     "description": "LLM-evaluated boolean condition — gates content based on an AI yes/no answer",
@@ -262,6 +277,18 @@ export const SNIPPETS: SnippetDefinition[] = [
     "trigger": "[#TOOL",
     "snippet": "[#TOOL ${1:tool_name}]\ndescription: ${2:what this tool does}\nparameters:\n  ${3:param_name}:\n    type: ${4|string,number,boolean,array|}\n    description: ${5:param description}\n    required: ${6|true,false|}\n[END TOOL]",
     "description": "Tool/function definition — declares tools for LLM function calling"
+  },
+  {
+    "name": "Skill definition — declares available skills for prompt composition",
+    "trigger": "[#SKILL",
+    "snippet": "[#SKILL ${1:skill_name}]\ndescription: ${2:what this skill does}\nsource: ${3:echostash://skill-id}\nparameters:\n  ${4:param_name}:\n    type: ${5|string,number,boolean,array|}\n    description: ${6:param description}\n    required: ${7|true,false|}\n[END SKILL]",
+    "description": "Skill definition — declares available skills for prompt composition"
+  },
+  {
+    "name": "Schema definition — declares a JSON Schema for structured LLM output",
+    "trigger": "[#SCHEMA",
+    "snippet": "[#SCHEMA]\n${1:property_name}:\n  type: ${2|string,number,boolean,array,object|}\n  description: ${3:property description}\n  required: ${4|true,false|}\n[END SCHEMA]",
+    "description": "Schema definition — declares a JSON Schema for structured LLM output"
   },
   {
     "name": "Reference a file or image from Context Store",

@@ -254,6 +254,30 @@ describe('lexer', () => {
     });
   });
 
+  describe('skill tokenization', () => {
+    it('should tokenize a skill block', () => {
+      const result = tokenize('[#SKILL jira]\ndescription: Create tickets\n[END SKILL]');
+      expect(result.errors).toHaveLength(0);
+
+      const tokenNames = result.tokens.map(t => t.tokenType.name);
+      expect(tokenNames).toContain('SkillOpen');
+      expect(tokenNames).toContain('Identifier');
+      expect(tokenNames).toContain('CloseBracket');
+      expect(tokenNames).toContain('EndSkill');
+    });
+
+    it('should tokenize skill inside a conditional', () => {
+      const result = tokenize('[#IF {{x}} #exists]\n[#SKILL helper]\ndescription: Help\n[END SKILL]\n[END IF]');
+      expect(result.errors).toHaveLength(0);
+
+      const tokenNames = result.tokens.map(t => t.tokenType.name);
+      expect(tokenNames).toContain('IfOpen');
+      expect(tokenNames).toContain('SkillOpen');
+      expect(tokenNames).toContain('EndSkill');
+      expect(tokenNames).toContain('EndIf');
+    });
+  });
+
   describe('complex templates', () => {
     it('should tokenize nested conditionals', () => {
       const template = `

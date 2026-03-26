@@ -13,6 +13,7 @@ export {
   createSectionNode,
   createImportNode,
   createIncludeNode,
+  createSkillNode,
   // Visitor
   visitNode,
   visitNodes,

@@ -207,6 +207,23 @@ export interface ToolNode extends BaseNode {
 }
 
 /**
+ * Skill definition block: [#SKILL name]...[END SKILL]
+ * Declares an available skill for prompt composition.
+ * Skills are managed prompts that agents can discover and load on demand.
+ */
+export interface SkillNode extends BaseNode {
+  type: 'skill';
+  /** The skill name (identifier) */
+  name: string;
+  /** Human-readable description of when to use this skill */
+  description: string;
+  /** Source URI — echostash:// reference or local .echo path */
+  source?: string;
+  /** Parameter definitions (reuses tool parameter schema) */
+  parameters: ToolParameter[];
+}
+
+/**
  * A single parameter in a tool definition.
  */
 export interface ToolParameter {
@@ -267,6 +284,7 @@ export type ASTNode =
   | ContextNode
   | RoleNode
   | ToolNode
+  | SkillNode
   | SchemaNode;
 
 // =============================================================================
@@ -440,12 +458,30 @@ export interface EchoToolDefinition {
 }
 
 /**
+ * A skill definition for prompt composition.
+ * Declares an available skill that agents can discover and load.
+ */
+export interface EchoSkillDefinition {
+  type: 'skill';
+  skill: {
+    name: string;
+    description: string;
+    /** Source URI — echostash:// reference or local .echo path */
+    source?: string;
+    /** JSON Schema for skill parameters */
+    parameters: Record<string, unknown>;
+  };
+}
+
+/**
  * Result of rendering a template with roles and tools.
  * Returned by `renderMessages()`.
  */
 export interface RenderResult {
   messages: EchoMessage[];
   tools: EchoToolDefinition[];
+  /** Skill definitions for prompt composition. */
+  skills: EchoSkillDefinition[];
   /** Resolved model configuration from meta template (if provided). */
   meta: Record<string, unknown>;
   /** JSON Schema for structured LLM output (if [#SCHEMA] block is defined). */

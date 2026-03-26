@@ -177,10 +177,10 @@ function generateTextMateGrammar(lang: LangDefinition): TMGrammar {
             name: 'keyword.control.else.echo',
             match: '\\[ELSE\\]',
           },
-          // [END IF], [END SECTION], [END ROLE], [END TOOL]
+          // [END IF], [END SECTION], [END ROLE], [END TOOL], [END SKILL]
           {
             name: 'keyword.control.end.echo',
-            match: '\\[END\\s+(IF|SECTION|ROLE|TOOL)\\]',
+            match: '\\[END\\s+(IF|SECTION|ROLE|TOOL|SKILL)\\]',
           },
           // [#ROLE system|user|assistant]
           {
@@ -201,6 +201,17 @@ function generateTextMateGrammar(lang: LangDefinition): TMGrammar {
               '1': { name: 'punctuation.bracket.open.echo' },
               '2': { name: 'keyword.control.tool.echo' },
               '3': { name: 'entity.name.function.tool.echo' },
+              '4': { name: 'punctuation.bracket.close.echo' },
+            },
+          },
+          // [#SKILL name]
+          {
+            name: 'meta.control.skill.echo',
+            match: '(\\[)(#SKILL)\\s+([a-zA-Z_][a-zA-Z0-9_]*)(\\])',
+            captures: {
+              '1': { name: 'punctuation.bracket.open.echo' },
+              '2': { name: 'keyword.control.skill.echo' },
+              '3': { name: 'entity.name.function.skill.echo' },
               '4': { name: 'punctuation.bracket.close.echo' },
             },
           },
@@ -343,7 +354,7 @@ function generateTextMateGrammar(lang: LangDefinition): TMGrammar {
 // =============================================================================
 
 function generateTypeScriptData(lang: LangDefinition): string {
-  const keywords = ['IF', 'ELSE', 'ELSE IF', 'END IF', 'SECTION', 'END SECTION', 'IMPORT', 'INCLUDE', 'ROLE', 'END ROLE', 'TOOL', 'END TOOL'];
+  const keywords = ['IF', 'ELSE', 'ELSE IF', 'END IF', 'SECTION', 'END SECTION', 'IMPORT', 'INCLUDE', 'ROLE', 'END ROLE', 'TOOL', 'END TOOL', 'SKILL', 'END SKILL'];
 
   const directives: Array<{
     name: string;

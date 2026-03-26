@@ -92,7 +92,7 @@
         },
         {
           "name": "keyword.control.end.echo",
-          "match": "\\[END\\s+(IF|SECTION|ROLE|TOOL)\\]"
+          "match": "\\[END\\s+(IF|SECTION|ROLE|TOOL|SKILL)\\]"
         },
         {
           "name": "meta.control.role.echo",
@@ -124,6 +124,24 @@
             },
             "3": {
               "name": "entity.name.function.tool.echo"
+            },
+            "4": {
+              "name": "punctuation.bracket.close.echo"
+            }
+          }
+        },
+        {
+          "name": "meta.control.skill.echo",
+          "match": "(\\[)(#SKILL)\\s+([a-zA-Z_][a-zA-Z0-9_]*)(\\])",
+          "captures": {
+            "1": {
+              "name": "punctuation.bracket.open.echo"
+            },
+            "2": {
+              "name": "keyword.control.skill.echo"
+            },
+            "3": {
+              "name": "entity.name.function.skill.echo"
             },
             "4": {
               "name": "punctuation.bracket.close.echo"
@@ -231,7 +249,7 @@
       "patterns": [
         {
           "name": "keyword.operator.echo",
-          "match": "#(equals|contains|matches|in|one_of|gt|greater_than|gte|greater_than_or_equal|lt|less_than|lte|less_than_or_equal|exists|ai_gate|ai_judge)\\b"
+          "match": "#(equals|contains|matches|in|one_of|gt|greater_than|gte|greater_than_or_equal|lt|less_than|lte|less_than_or_equal|exists|not_exists|doesnt_exist|ai_gate|ai_judge)\\b"
         },
         {
           "name": "punctuation.paren.open.echo",

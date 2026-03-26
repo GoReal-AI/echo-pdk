@@ -301,6 +301,64 @@ describe('parser', () => {
     });
   });
 
+  describe('skill parsing', () => {
+    it('should parse a skill block with all fields', () => {
+      const result = parse('[#SKILL jira_tickets]\ndescription: Create Jira tickets\nsource: echostash://skill-042\nparameters:\n  project_type:\n    type: string\n    description: Type of project\n    required: true\n[END SKILL]');
+      expect(result.success).toBe(true);
+      expect(result.ast).toHaveLength(1);
+      expect(result.ast?.[0].type).toBe('skill');
+      if (result.ast?.[0].type === 'skill') {
+        expect(result.ast[0].name).toBe('jira_tickets');
+        expect(result.ast[0].description).toBe('Create Jira tickets');
+        expect(result.ast[0].source).toBe('echostash://skill-042');
+        expect(result.ast[0].parameters).toHaveLength(1);
+        expect(result.ast[0].parameters[0].name).toBe('project_type');
+        expect(result.ast[0].parameters[0].required).toBe(true);
+      }
+    });
+
+    it('should parse a skill block with no source', () => {
+      const result = parse('[#SKILL helper]\ndescription: A helper\nparameters:\n  lang:\n    type: string\n[END SKILL]');
+      expect(result.success).toBe(true);
+      if (result.ast?.[0].type === 'skill') {
+        expect(result.ast[0].source).toBeUndefined();
+        expect(result.ast[0].parameters).toHaveLength(1);
+      }
+    });
+
+    it('should parse a skill block with no parameters', () => {
+      const result = parse('[#SKILL simple]\ndescription: Simple skill\nsource: ./skills/simple.echo\n[END SKILL]');
+      expect(result.success).toBe(true);
+      if (result.ast?.[0].type === 'skill') {
+        expect(result.ast[0].name).toBe('simple');
+        expect(result.ast[0].source).toBe('./skills/simple.echo');
+        expect(result.ast[0].parameters).toHaveLength(0);
+      }
+    });
+
+    it('should parse a skill inside a conditional', () => {
+      const result = parse('[#IF {{premium}} #exists]\n[#SKILL premium_skill]\ndescription: Premium only\n[END SKILL]\n[END IF]');
+      expect(result.success).toBe(true);
+      expect(result.ast).toHaveLength(1);
+      expect(result.ast?.[0].type).toBe('conditional');
+      if (result.ast?.[0].type === 'conditional') {
+        const inner = result.ast[0].consequent;
+        const skills = inner.filter(n => n.type === 'skill');
+        expect(skills).toHaveLength(1);
+      }
+    });
+
+    it('should parse skills coexisting with tools and roles', () => {
+      const template = '[#ROLE system]\nHello\n[END ROLE]\n[#TOOL search]\ndescription: Search\n[END TOOL]\n[#SKILL jira]\ndescription: Jira\n[END SKILL]';
+      const result = parse(template);
+      expect(result.success).toBe(true);
+      const types = result.ast?.map(n => n.type);
+      expect(types).toContain('role');
+      expect(types).toContain('tool');
+      expect(types).toContain('skill');
+    });
+  });
+
   describe('error handling', () => {
     it('should report error for unclosed variable', () => {
       const result = parse('Hello {{name');

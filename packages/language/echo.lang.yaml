@@ -120,6 +120,38 @@ syntax:
       trigger: "[#TOOL"
       snippet: "[#TOOL ${1:tool_name}]\ndescription: ${2:what this tool does}\nparameters:\n  ${3:param_name}:\n    type: ${4|string,number,boolean,array|}\n    description: ${5:param description}\n    required: ${6|true,false|}\n[END TOOL]"
 
+  # Skill definitions — declare available skills for prompt composition
+  skill:
+    open: "[#SKILL"
+    close: "[END SKILL]"
+    body:
+      format: yaml
+      fields:
+        - name: description
+          type: string
+          description: "Human-readable description of when to use this skill"
+        - name: source
+          type: string
+          description: "Source URI — echostash:// reference or local .echo path"
+        - name: parameters
+          type: object
+          description: "YAML-like parameter definitions with type, description, required, enum"
+    description: "Skill definition — declares available skills for prompt composition"
+    examples:
+      - |
+        [#SKILL jira_tickets]
+        description: Use when the user needs to create or manage Jira tickets
+        source: echostash://skill-042
+        parameters:
+          project_type:
+            type: string
+            description: Type of project
+            required: true
+        [END SKILL]
+    autocomplete:
+      trigger: "[#SKILL"
+      snippet: "[#SKILL ${1:skill_name}]\ndescription: ${2:what this skill does}\nsource: ${3:echostash://skill-id}\nparameters:\n  ${4:param_name}:\n    type: ${5|string,number,boolean,array|}\n    description: ${6:param description}\n    required: ${7|true,false|}\n[END SKILL]"
+
   # Schema definition — declare JSON Schema for structured LLM output
   schema:
     open: "[#SCHEMA]"
@@ -349,6 +381,16 @@ validation:
     level: error
     description: "Flag tool definitions with empty names"
     message: "Tool name is required"
+
+  unclosedSkillBlocks:
+    level: error
+    description: "Flag unclosed [#SKILL] blocks"
+    message: "Unclosed skill block starting at line {{line}}"
+
+  emptySkillName:
+    level: error
+    description: "Flag skill definitions with empty names"
+    message: "Skill name is required"
 
   multipleSchemas:
     level: error

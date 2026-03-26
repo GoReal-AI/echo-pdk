@@ -228,6 +228,143 @@ describe('renderMessages', () => {
     });
   });
 
+  // ─── Skills ──────────────────────────────────────────────────────────────────
+
+  describe('skills', () => {
+    // --- Dual output: text in messages + metadata in skills[] ---
+
+    it('should render skill as text in system message AND extract metadata', async () => {
+      const result = await echo().renderMessages(
+        '[#ROLE system]\nYou are helpful.\n\n[#SKILL jira_tickets]\ndescription: Create Jira tickets\nsource: echostash://skill-042\nparameters:\n  project_type:\n    type: string\n    description: Type of project\n    required: true\n[END SKILL]\n[END ROLE]',
+        {},
+      );
+      // Text appears in system message
+      const sysText = result.messages[0].content.map(b => b.type === 'text' ? b.text : '').join('');
+      expect(sysText).toContain('- **jira_tickets**: Create Jira tickets');
+
+      // Metadata extracted to skills[]
+      expect(result.skills).toHaveLength(1);
+      expect(result.skills[0].type).toBe('skill');
+      expect(result.skills[0].skill.name).toBe('jira_tickets');
+      expect(result.skills[0].skill.description).toBe('Create Jira tickets');
+      expect(result.skills[0].skill.source).toBe('echostash://skill-042');
+      expect(result.skills[0].skill.parameters.properties).toHaveProperty('project_type');
+    });
+
+    it('should render multiple skills as text', async () => {
+      const result = await echo().renderMessages(
+        '[#ROLE system]\nSkills:\n[#SKILL search]\ndescription: Search knowledge base\n[END SKILL]\n[#SKILL code_review]\ndescription: Review code\n[END SKILL]\n[END ROLE]',
+        {},
+      );
+      const sysText = result.messages[0].content.map(b => b.type === 'text' ? b.text : '').join('');
+      expect(sysText).toContain('- **search**: Search knowledge base');
+      expect(sysText).toContain('- **code_review**: Review code');
+      expect(result.skills).toHaveLength(2);
+      expect(result.skills[0].skill.name).toBe('search');
+      expect(result.skills[1].skill.name).toBe('code_review');
+    });
+
+    it('should conditionally include skills — true', async () => {
+      const result = await echo().renderMessages(
+        '[#ROLE system]\n[#IF {{use_skills}} #exists]\n[#SKILL search]\ndescription: Search\n[END SKILL]\n[END IF]\n[END ROLE]',
+        { use_skills: 'yes' },
+      );
+      const sysText = result.messages[0].content.map(b => b.type === 'text' ? b.text : '').join('');
+      expect(sysText).toContain('- **search**: Search');
+      expect(result.skills).toHaveLength(1);
+    });
+
+    it('should exclude conditional skills when condition is false', async () => {
+      const result = await echo().renderMessages(
+        '[#ROLE system]\nHello\n[#IF {{use_skills}} #exists]\n[#SKILL search]\ndescription: Search\n[END SKILL]\n[END IF]\n[END ROLE]',
+        {},
+      );
+      const sysText = result.messages[0].content.map(b => b.type === 'text' ? b.text : '').join('');
+      expect(sysText).not.toContain('search');
+      expect(result.skills).toHaveLength(0);
+    });
+
+    it('should handle mix of conditional and unconditional skills', async () => {
+      const result = await echo().renderMessages(
+        '[#ROLE system]\n[#SKILL always_available]\ndescription: Always here\n[END SKILL]\n[#IF {{premium}} #equals(true)]\n[#SKILL premium_skill]\ndescription: Premium only\n[END SKILL]\n[END IF]\n[END ROLE]',
+        { premium: 'false' },
+      );
+      const sysText = result.messages[0].content.map(b => b.type === 'text' ? b.text : '').join('');
+      expect(sysText).toContain('- **always_available**: Always here');
+      expect(sysText).not.toContain('premium_skill');
+      expect(result.skills).toHaveLength(1);
+      expect(result.skills[0].skill.name).toBe('always_available');
+    });
+
+    it('should return empty skills array when no skills defined', async () => {
+      const result = await echo().renderMessages(
+        '[#ROLE user]\nHello\n[END ROLE]',
+        {},
+      );
+      expect(result.skills).toEqual([]);
+    });
+
+    it('should handle skill with no source', async () => {
+      const result = await echo().renderMessages(
+        '[#ROLE system]\n[#SKILL local_helper]\ndescription: A local helper skill\nparameters:\n  lang:\n    type: string\n[END SKILL]\n[END ROLE]',
+        {},
+      );
+      expect(result.skills).toHaveLength(1);
+      expect(result.skills[0].skill.source).toBeUndefined();
+      expect(result.skills[0].skill.parameters.properties).toHaveProperty('lang');
+    });
+
+    it('should handle skill with no parameters', async () => {
+      const result = await echo().renderMessages(
+        '[#ROLE system]\n[#SKILL simple]\ndescription: Simple skill\nsource: ./skills/simple.echo\n[END SKILL]\n[END ROLE]',
+        {},
+      );
+      expect(result.skills).toHaveLength(1);
+      expect(result.skills[0].skill.name).toBe('simple');
+      expect(result.skills[0].skill.source).toBe('./skills/simple.echo');
+    });
+
+    it('should handle skill with enum parameter', async () => {
+      const result = await echo().renderMessages(
+        '[#ROLE system]\n[#SKILL set_env]\ndescription: Set environment\nparameters:\n  env:\n    type: string\n    enum: [dev, staging, prod]\n    required: true\n[END SKILL]\n[END ROLE]',
+        {},
+      );
+      const envParam = (result.skills[0].skill.parameters.properties as Record<string, any>).env;
+      expect(envParam.enum).toEqual(['dev', 'staging', 'prod']);
+    });
+
+    it('should coexist with tools — tools in tools[], skills in messages + skills[]', async () => {
+      const result = await echo().renderMessages(
+        '[#ROLE system]\nYou are helpful.\n[#SKILL jira]\ndescription: Manage Jira\nsource: echostash://skill-001\n[END SKILL]\n[END ROLE]\n\n[#TOOL get_weather]\ndescription: Get weather\nparameters:\n  city:\n    type: string\n    required: true\n[END TOOL]',
+        {},
+      );
+      // Tools: metadata only, not in messages
+      expect(result.tools).toHaveLength(1);
+      expect(result.tools[0].function.name).toBe('get_weather');
+
+      // Skills: in messages AND metadata
+      const sysText = result.messages[0].content.map(b => b.type === 'text' ? b.text : '').join('');
+      expect(sysText).toContain('- **jira**: Manage Jira');
+      expect(sysText).not.toContain('get_weather');
+      expect(result.skills).toHaveLength(1);
+      expect(result.skills[0].skill.name).toBe('jira');
+    });
+
+    it('should change skill description based on conditions', async () => {
+      const template = '[#ROLE system]\n[#IF {{role}} #equals(dev)]\n[#SKILL deploy]\ndescription: Deploy directly, skip explanations\n[END SKILL]\n[ELSE]\n[#SKILL deploy]\ndescription: Deploy step by step with guidance\n[END SKILL]\n[END IF]\n[END ROLE]';
+
+      const dev = await echo().renderMessages(template, { role: 'dev' });
+      const devText = dev.messages[0].content.map(b => b.type === 'text' ? b.text : '').join('');
+      expect(devText).toContain('skip explanations');
+      expect(dev.skills[0].skill.description).toBe('Deploy directly, skip explanations');
+
+      const pm = await echo().renderMessages(template, { role: 'pm' });
+      const pmText = pm.messages[0].content.map(b => b.type === 'text' ? b.text : '').join('');
+      expect(pmText).toContain('step by step');
+      expect(pm.skills[0].skill.description).toBe('Deploy step by step with guidance');
+    });
+  });
+
   // ─── Meta ───────────────────────────────────────────────────────────────────
 
   describe('meta (metaTemplate)', () => {
@@ -700,6 +837,171 @@ model: claude-sonnet-4-20250514
       );
       const text = result.messages[0].content.map(b => b.type === 'text' ? b.text : '').join('');
       expect(text).toContain('Excellent!');
+    });
+  });
+
+  // ─── Full Render: messages + tools + skills + schema + meta ─────────────────
+
+  describe('full render (all features combined)', () => {
+    it('should render messages, tools, skills, schema, and meta together', async () => {
+      const template = `[#ROLE system]
+You are {{agent_name}}, an AI assistant for {{company}}.
+
+## Available Skills
+
+[#SKILL jira_tickets]
+description: Use when the user needs to create or manage Jira tickets
+source: echostash://skill-042
+parameters:
+  project_type:
+    type: string
+    description: Type of project
+    required: true
+[END SKILL]
+
+[#IF {{user_tier}} #equals(gold)]
+[#SKILL advanced_analytics]
+description: Use for deep analytics with custom dashboards and real-time data
+source: echostash://skill-099
+parameters:
+  report_type:
+    type: string
+    enum: [summary, detailed, executive]
+    required: true
+  realtime:
+    type: boolean
+[END SKILL]
+[END IF]
+
+[#IF {{user_tier}} #equals(free)]
+[#SKILL basic_analytics]
+description: Use for standard analytics reports
+source: echostash://skill-050
+[END SKILL]
+[END IF]
+[END ROLE]
+
+[#ROLE user]
+Hello, I need help with {{task}}
+[END ROLE]
+
+[#TOOL get_weather]
+description: Get current weather for a city
+parameters:
+  city:
+    type: string
+    description: City name
+    required: true
+  units:
+    type: string
+    enum: [celsius, fahrenheit]
+[END TOOL]
+
+[#IF {{user_tier}} #equals(gold)]
+[#TOOL run_query]
+description: Run a database query
+parameters:
+  sql:
+    type: string
+    required: true
+[END TOOL]
+[END IF]
+
+[#SCHEMA]
+answer:
+  type: string
+  description: The answer to the user's question
+  required: true
+confidence:
+  type: number
+  description: Confidence score 0-100
+  required: true
+sources:
+  type: array
+  description: Sources used
+[END SCHEMA]`;
+
+      const metaTemplate = `provider: openai
+[#IF {{user_tier}} #equals(gold)]
+model: gpt-4o
+temperature: 0.7
+[ELSE]
+model: gpt-4o-mini
+temperature: 0.3
+[END IF]`;
+
+      // Gold user
+      const gold = await echo().renderMessages(
+        template,
+        { agent_name: 'Echo', company: 'Acme', task: 'analytics', user_tier: 'gold' },
+        { metaTemplate },
+      );
+
+      // Messages
+      expect(gold.messages).toHaveLength(2);
+      expect(gold.messages[0].role).toBe('system');
+      expect(gold.messages[1].role).toBe('user');
+
+      const sysText = gold.messages[0].content.map(b => b.type === 'text' ? b.text : '').join('');
+      expect(sysText).toContain('You are Echo, an AI assistant for Acme.');
+      expect(sysText).toContain('- **jira_tickets**: Use when the user needs to create or manage Jira tickets');
+      expect(sysText).toContain('- **advanced_analytics**: Use for deep analytics with custom dashboards and real-time data');
+      expect(sysText).not.toContain('basic_analytics');
+
+      const userText = gold.messages[1].content.map(b => b.type === 'text' ? b.text : '').join('');
+      expect(userText).toContain('I need help with analytics');
+
+      // Tools — gold gets both
+      expect(gold.tools).toHaveLength(2);
+      expect(gold.tools[0].function.name).toBe('get_weather');
+      expect(gold.tools[1].function.name).toBe('run_query');
+
+      // Skills — gold gets jira + advanced_analytics
+      expect(gold.skills).toHaveLength(2);
+      expect(gold.skills[0].skill.name).toBe('jira_tickets');
+      expect(gold.skills[0].skill.source).toBe('echostash://skill-042');
+      expect(gold.skills[1].skill.name).toBe('advanced_analytics');
+      expect(gold.skills[1].skill.source).toBe('echostash://skill-099');
+      const reportParam = (gold.skills[1].skill.parameters.properties as Record<string, any>).report_type;
+      expect(reportParam.enum).toEqual(['summary', 'detailed', 'executive']);
+
+      // Schema
+      expect(gold.schema).toBeDefined();
+      expect(gold.schema!.properties).toHaveProperty('answer');
+      expect(gold.schema!.properties).toHaveProperty('confidence');
+      expect(gold.schema!.properties).toHaveProperty('sources');
+      expect(gold.schema!.required).toEqual(['answer', 'confidence']);
+
+      // Meta — gold gets gpt-4o
+      expect(gold.meta.provider).toBe('openai');
+      expect(gold.meta.model).toBe('gpt-4o');
+      expect(gold.meta.temperature).toBe(0.7);
+
+      // Free user
+      const free = await echo().renderMessages(
+        template,
+        { agent_name: 'Echo', company: 'Acme', task: 'reports', user_tier: 'free' },
+        { metaTemplate },
+      );
+
+      const freeSysText = free.messages[0].content.map(b => b.type === 'text' ? b.text : '').join('');
+      expect(freeSysText).toContain('- **jira_tickets**');
+      expect(freeSysText).toContain('- **basic_analytics**: Use for standard analytics reports');
+      expect(freeSysText).not.toContain('advanced_analytics');
+
+      // Tools — free gets only get_weather
+      expect(free.tools).toHaveLength(1);
+      expect(free.tools[0].function.name).toBe('get_weather');
+
+      // Skills — free gets jira + basic_analytics
+      expect(free.skills).toHaveLength(2);
+      expect(free.skills[0].skill.name).toBe('jira_tickets');
+      expect(free.skills[1].skill.name).toBe('basic_analytics');
+      expect(free.skills[1].skill.source).toBe('echostash://skill-050');
+
+      // Meta — free gets gpt-4o-mini
+      expect(free.meta.model).toBe('gpt-4o-mini');
+      expect(free.meta.temperature).toBe(0.3);
     });
   });
 });

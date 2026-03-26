@@ -433,6 +433,10 @@ async function evaluateNode(
       // Tool nodes pass through unchanged (static metadata)
       return [node];
 
+    case 'skill':
+      // Skill nodes pass through unchanged (static metadata)
+      return [node];
+
     case 'schema':
       // Schema nodes pass through unchanged (static metadata)
       return [node];

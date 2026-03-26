@@ -50,6 +50,7 @@ import {
   EndSection,
   EndSchema,
   EndTool,
+  EndSkill,
   Equals,
   formatLexerErrors,
   Identifier,
@@ -67,6 +68,7 @@ import {
   StringLiteral,
   Text,
   ToolOpen,
+  SkillOpen,
   tokenize,
   VariableClose,
   VariableOpen,
@@ -82,6 +84,7 @@ import {
   createSectionNode,
   createTextNode,
   createToolNode,
+  createSkillNode,
   createVariableNode,
 } from './ast.js';
 
@@ -129,6 +132,7 @@ class EchoParser extends CstParser {
       { ALT: () => this.SUBRULE(this.sectionNode) },
       { ALT: () => this.SUBRULE(this.roleNode) },
       { ALT: () => this.SUBRULE(this.toolNode) },
+      { ALT: () => this.SUBRULE(this.skillNode) },
       { ALT: () => this.SUBRULE(this.schemaNode) },
       { ALT: () => this.SUBRULE(this.importNode) },
       { ALT: () => this.SUBRULE(this.includeNode) },
@@ -319,6 +323,25 @@ class EchoParser extends CstParser {
   });
 
   /**
+   * Skill definition: [#SKILL name]...[END SKILL]
+   *
+   * The body between [#SKILL name] and [END SKILL] is captured as Text tokens
+   * and parsed as YAML-like structured data by the visitor.
+   */
+  private skillNode = this.RULE('skillNode', () => {
+    this.CONSUME(SkillOpen);
+    this.CONSUME(Identifier); // skill name
+    this.CONSUME(CloseBracket);
+
+    // Body is raw text tokens (YAML-like content)
+    this.MANY(() => {
+      this.CONSUME(Text);
+    });
+
+    this.CONSUME(EndSkill);
+  });
+
+  /**
    * Schema definition: [#SCHEMA]...[END SCHEMA]
    *
    * The body between [#SCHEMA] and [END SCHEMA] is captured as Text tokens
@@ -419,6 +442,9 @@ class EchoAstVisitor extends BaseCstVisitor {
     }
     if (ctx.toolNode?.[0]) {
       return this.visit(ctx.toolNode[0]);
+    }
+    if (ctx.skillNode?.[0]) {
+      return this.visit(ctx.skillNode[0]);
     }
     if (ctx.schemaNode?.[0]) {
       return this.visit(ctx.schemaNode[0]);
@@ -789,6 +815,28 @@ class EchoAstVisitor extends BaseCstVisitor {
   }
 
   /**
+   * Visit a skill node.
+   * Collects raw text body and parses as YAML-like skill definition.
+   */
+  skillNode(ctx: CstSkillNodeContext): ASTNode {
+    const skillOpenToken = ctx.SkillOpen?.[0];
+    const endSkillToken = ctx.EndSkill?.[0];
+    const identifierToken = ctx.Identifier?.[0];
+
+    const name = identifierToken?.image ?? '';
+
+    // Collect all text tokens as the skill body
+    const bodyText = (ctx.Text ?? []).map(t => t.image).join('');
+    const { description, source, parameters } = parseSkillBody(bodyText);
+
+    const location = skillOpenToken && endSkillToken
+      ? mergeLocations(getTokenLocation(skillOpenToken), getTokenLocation(endSkillToken))
+      : defaultLocation;
+
+    return createSkillNode(name, description, parameters, location, source);
+  }
+
+  /**
    * Visit a schema node.
    * Collects raw text body and parses as YAML-like schema definition.
    */
@@ -826,6 +874,7 @@ interface CstNodeContext {
   sectionNode?: CstNode[];
   roleNode?: CstNode[];
   toolNode?: CstNode[];
+  skillNode?: CstNode[];
   schemaNode?: CstNode[];
   importNode?: CstNode[];
   includeNode?: CstNode[];
@@ -917,6 +966,14 @@ interface CstRoleNodeContext {
 interface CstToolNodeContext {
   ToolOpen?: IToken[];
   EndTool?: IToken[];
+  CloseBracket?: IToken[];
+  Identifier?: IToken[];
+  Text?: IToken[];
+}
+
+interface CstSkillNodeContext {
+  SkillOpen?: IToken[];
+  EndSkill?: IToken[];
   CloseBracket?: IToken[];
   Identifier?: IToken[];
   Text?: IToken[];
@@ -1052,9 +1109,9 @@ function formatParserErrors(errors: typeof parserInstance.errors): EchoError[] {
 // =============================================================================
 
 /**
- * Parse YAML-like tool body text into description and parameters.
+ * Parse a YAML-like block body into description, parameters, and optional extra fields.
  *
- * Expected format:
+ * Shared parser for [#TOOL] and [#SKILL] blocks. Both use the same format:
  *   description: Human-readable description
  *   parameters:
  *     param_name:
@@ -1063,11 +1120,22 @@ function formatParserErrors(errors: typeof parserInstance.errors): EchoError[] {
  *       required: true
  *       enum: [a, b, c]
  *       default: value
+ *
+ * Additional root-level string fields (like `source:` for skills) are captured
+ * via the `extraFields` parameter.
+ *
+ * @param text - The raw body text between the opening and closing tags
+ * @param extraFields - Optional list of additional root-level field names to extract
+ * @returns Parsed description, parameters, and any extra fields
  */
-function parseToolBody(text: string): { description: string; parameters: ToolParameter[] } {
+function parseBlockBody(
+  text: string,
+  extraFields: string[] = [],
+): { description: string; parameters: ToolParameter[]; extra: Record<string, string> } {
   const lines = text.split('\n');
   let description = '';
   const parameters: ToolParameter[] = [];
+  const extra: Record<string, string> = {};
 
   let section: 'root' | 'parameters' | 'param' = 'root';
   let currentParam: Partial<ToolParameter> | null = null;
@@ -1076,13 +1144,22 @@ function parseToolBody(text: string): { description: string; parameters: ToolPar
     const trimmed = line.trim();
     if (!trimmed) continue;
 
-    // Root-level keys
+    // Root-level keys (no indentation)
     if (!line.startsWith('  ') && !line.startsWith('\t')) {
       if (trimmed.startsWith('description:')) {
         description = trimmed.slice('description:'.length).trim();
         section = 'root';
       } else if (trimmed === 'parameters:') {
         section = 'parameters';
+      } else {
+        // Check extra fields (e.g., "source:" for skills)
+        for (const field of extraFields) {
+          if (trimmed.startsWith(`${field}:`)) {
+            extra[field] = trimmed.slice(field.length + 1).trim();
+            section = 'root';
+            break;
+          }
+        }
       }
       continue;
     }
@@ -1134,7 +1211,19 @@ function parseToolBody(text: string): { description: string; parameters: ToolPar
     parameters.push(currentParam as ToolParameter);
   }
 
+  return { description, parameters, extra };
+}
+
+/** Parse a [#TOOL] body. */
+function parseToolBody(text: string): { description: string; parameters: ToolParameter[] } {
+  const { description, parameters } = parseBlockBody(text);
   return { description, parameters };
+}
+
+/** Parse a [#SKILL] body (adds `source` field). */
+function parseSkillBody(text: string): { description: string; source?: string; parameters: ToolParameter[] } {
+  const { description, parameters, extra } = parseBlockBody(text, ['source']);
+  return { description, source: extra.source, parameters };
 }
 
 /**

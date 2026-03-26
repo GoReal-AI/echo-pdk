@@ -33,6 +33,7 @@ import type {
   RoleNode,
   SchemaNode,
   SectionNode,
+  SkillNode,
   SourceLocation,
   TextNode,
   ToolNode,
@@ -222,6 +223,26 @@ export function createToolNode(
 }
 
 /**
+ * Create a SkillNode.
+ */
+export function createSkillNode(
+  name: string,
+  description: string,
+  parameters: ToolParameter[],
+  location: SourceLocation,
+  source?: string,
+): SkillNode {
+  return {
+    type: 'skill',
+    name,
+    description,
+    source,
+    parameters,
+    location,
+  };
+}
+
+/**
  * Create a SchemaNode.
  */
 export function createSchemaNode(
@@ -253,6 +274,7 @@ export interface ASTVisitor<T = void> {
   visitContext?(node: ContextNode): T;
   visitRole?(node: RoleNode): T;
   visitTool?(node: ToolNode): T;
+  visitSkill?(node: SkillNode): T;
   visitSchema?(node: SchemaNode): T;
 }
 
@@ -283,6 +305,8 @@ export function visitNode<T>(node: ASTNode, visitor: ASTVisitor<T>): T | undefin
       return visitor.visitRole?.(node);
     case 'tool':
       return visitor.visitTool?.(node);
+    case 'skill':
+      return visitor.visitSkill?.(node);
     case 'schema':
       return visitor.visitSchema?.(node);
     default: {
@@ -425,6 +449,9 @@ export function prettyPrint(ast: ASTNode[], indent = 0): string {
         break;
       case 'tool':
         lines.push(`${pad}TOOL: ${node.name} (${node.parameters.length} params)`);
+        break;
+      case 'skill':
+        lines.push(`${pad}SKILL: ${node.name} (${node.parameters.length} params)${node.source ? ` source=${node.source}` : ''}`);
         break;
       case 'schema':
         lines.push(`${pad}SCHEMA: (${Object.keys(node.schema.properties).length} properties)`);

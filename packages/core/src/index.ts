@@ -34,6 +34,7 @@ export type {
   ContextNode,
   RoleNode,
   ToolNode,
+  SkillNode,
   ToolParameter,
   SchemaNode,
   JsonSchema,
@@ -56,6 +57,7 @@ export type {
   // Structured render result
   EchoMessage,
   EchoToolDefinition,
+  EchoSkillDefinition,
   RenderResult,
   // Results
   ParseResult,
@@ -118,6 +120,7 @@ export {
   createContextNode,
   createRoleNode,
   createToolNode,
+  createSkillNode,
   createSchemaNode,
   collectAiJudgeConditions,
   visitNode,
@@ -716,6 +719,17 @@ function validateNodes(
           message: `Import will not be resolved: ${node.path}`,
           location: node.location,
         });
+        break;
+      }
+
+      case 'skill': {
+        if (!node.name) {
+          errors.push({
+            code: 'EMPTY_SKILL_NAME',
+            message: 'Skill name is required',
+            location: node.location,
+          });
+        }
         break;
       }
 

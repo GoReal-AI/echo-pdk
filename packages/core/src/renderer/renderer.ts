@@ -22,12 +22,14 @@ import type {
   ContextNode,
   EchoConfig,
   EchoMessage,
+  EchoSkillDefinition,
   EchoToolDefinition,
   MultimodalContent,
   OperatorDefinition,
   RenderResult,
   RoleNode,
   SchemaNode,
+  SkillNode,
   TextNode,
   ToolNode,
   ToolParameter,
@@ -153,6 +155,10 @@ function renderNode(node: ASTNode, options: RenderOptions): string | undefined {
     case 'tool':
       // Tool definitions are not rendered as text — they're structural metadata
       return undefined;
+
+    case 'skill':
+      // Skill declarations render as formatted text for the LLM to see
+      return formatSkillText(node);
 
     case 'schema':
       // Schema definitions are not rendered as text — they're structural metadata
@@ -345,6 +351,11 @@ export function renderMultimodal(ast: ASTNode[], options: RenderOptions): Multim
         // Tool definitions are not rendered in multimodal content
         break;
 
+      case 'skill':
+        // Skill declarations render as formatted text for the LLM to see
+        currentText += formatSkillText(node);
+        break;
+
       case 'schema':
         // Schema definitions are not rendered in multimodal content
         break;
@@ -525,12 +536,18 @@ function collapseNewlines(text: string): string {
 export function renderMessages(ast: ASTNode[], options: RenderOptions): RenderResult {
   const messages: EchoMessage[] = [];
   const tools: EchoToolDefinition[] = [];
+  const skills: EchoSkillDefinition[] = [];
+
+  // Collect all skill nodes for metadata (from top-level AND inside role bodies)
+  const allSkillNodes = collectAllSkillNodes(ast);
 
   const roleNodes: RoleNode[] = [];
   const toolNodes: ToolNode[] = [];
   const schemaNodes: SchemaNode[] = [];
   const looseNodes: ASTNode[] = [];
 
+  // Skills are NOT separated — they stay in looseNodes / role bodies
+  // so they render as text in messages. Only tools and schema are extracted.
   for (const node of ast) {
     if (node.type === 'role') {
       roleNodes.push(node);
@@ -576,11 +593,42 @@ export function renderMessages(ast: ASTNode[], options: RenderOptions): RenderRe
     tools.push(convertToolNode(toolNode));
   }
 
+  // Convert skill nodes to definitions (collected from entire AST)
+  for (const skillNode of allSkillNodes) {
+    skills.push(convertSkillNode(skillNode));
+  }
+
   // Extract schema (only first one — validation ensures at most one)
   const firstSchema = schemaNodes[0];
   const schema = firstSchema ? firstSchema.schema : undefined;
 
-  return { messages, tools, meta: {}, ...(schema && { schema }) };
+  return { messages, tools, skills, meta: {}, ...(schema && { schema }) };
+}
+
+/**
+ * Format a skill node as text for the LLM to see in the prompt.
+ * Renders as a markdown list item: "- **name**: description"
+ */
+function formatSkillText(node: SkillNode): string {
+  return `- **${node.name}**: ${node.description}\n`;
+}
+
+/**
+ * Recursively collect all skill nodes from the AST.
+ * Walks into role bodies and any other container nodes.
+ * Used to extract metadata for the skills[] array while skills also
+ * render as text in messages.
+ */
+function collectAllSkillNodes(nodes: ASTNode[]): SkillNode[] {
+  const skills: SkillNode[] = [];
+  for (const node of nodes) {
+    if (node.type === 'skill') {
+      skills.push(node);
+    } else if (node.type === 'role') {
+      skills.push(...collectAllSkillNodes(node.body));
+    }
+  }
+  return skills;
 }
 
 /**
@@ -592,6 +640,21 @@ function convertToolNode(node: ToolNode): EchoToolDefinition {
     function: {
       name: node.name,
       description: node.description,
+      parameters: convertParameters(node.parameters),
+    },
+  };
+}
+
+/**
+ * Convert a SkillNode to a skill definition.
+ */
+function convertSkillNode(node: SkillNode): EchoSkillDefinition {
+  return {
+    type: 'skill',
+    skill: {
+      name: node.name,
+      description: node.description,
+      ...(node.source && { source: node.source }),
       parameters: convertParameters(node.parameters),
     },
   };
