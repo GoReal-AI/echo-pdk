@@ -6,6 +6,8 @@
  * for completion, model listing, judging, and similarity.
  */
 
+import type { ContentBlock, EchoToolDefinition } from '../types.js';
+
 // =============================================================================
 // PROVIDER IDENTITY
 // =============================================================================
@@ -83,7 +85,7 @@ export interface ModelInfo {
  */
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant';
-  content: string | import('../types.js').ContentBlock[];
+  content: string | ContentBlock[];
 }
 
 /**
@@ -135,7 +137,7 @@ export interface CompletionOptions {
   /** Maximum tokens in the response */
   maxTokens?: number;
   /** Tool/function definitions (OpenAI format) */
-  tools?: import('../types.js').EchoToolDefinition[];
+  tools?: EchoToolDefinition[];
 }
 
 // =============================================================================

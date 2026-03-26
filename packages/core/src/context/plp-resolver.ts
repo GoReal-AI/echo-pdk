@@ -32,12 +32,13 @@
 
 import type { ContextResolver, ContextResolveResult, ContextBatchResult } from './resolver.js';
 import type { ResolvedContextContent } from '../types.js';
+import type { PLPClient as PLPClientType } from '@goreal-ai/plp-client';
 import { isPlpReference, extractAssetId, validateContextPath } from './resolver.js';
 
 // Dynamic import PLPClient to keep it optional
-let PLPClientClass: typeof import('@goreal-ai/plp-client').PLPClient | null = null;
+let PLPClientClass: typeof PLPClientType | null = null;
 
-async function getPLPClient(): Promise<typeof import('@goreal-ai/plp-client').PLPClient | null> {
+async function getPLPClient(): Promise<typeof PLPClientType | null> {
   if (PLPClientClass) return PLPClientClass;
   try {
     const module = await import('@goreal-ai/plp-client');
@@ -57,7 +58,7 @@ async function getPLPClient(): Promise<typeof import('@goreal-ai/plp-client').PL
  */
 export interface PlpResolverConfig {
   /** Pre-configured PLPClient instance (preferred) */
-  client?: import('@goreal-ai/plp-client').PLPClient;
+  client?: PLPClientType;
   /** The PLP server URL (e.g., 'https://api.echostash.com') - required if client not provided */
   serverUrl?: string;
   /** Authentication token or API key - required if client not provided */
@@ -78,7 +79,7 @@ export interface PlpResolverConfig {
  * - client.resolvePromptContext(promptId, contextNames) - for prompt context mappings
  */
 export class PlpContextResolver implements ContextResolver {
-  private client: import('@goreal-ai/plp-client').PLPClient | null = null;
+  private client: PLPClientType | null = null;
   private config: PlpResolverConfig;
   private initPromise: Promise<void> | null = null;
 

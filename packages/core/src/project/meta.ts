@@ -32,7 +32,7 @@ import { DEFAULT_META } from './types.js';
  */
 export function parseMeta(content: string): MetaFile | null {
   try {
-    const parsed = YAML.parse(content);
+    const parsed: unknown = YAML.parse(content);
     if (!parsed || typeof parsed !== 'object') {
       return null;
     }
@@ -53,7 +53,7 @@ export function parseMetaWithErrors(content: string): {
   error: string | null;
 } {
   try {
-    const parsed = YAML.parse(content);
+    const parsed: unknown = YAML.parse(content);
     if (!parsed || typeof parsed !== 'object') {
       return { meta: null, error: 'Invalid YAML: expected an object' };
     }

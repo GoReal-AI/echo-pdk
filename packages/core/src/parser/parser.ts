@@ -32,6 +32,7 @@ import type {
   EchoError,
   JsonSchema,
   JsonSchemaProperty,
+  MessageRole,
   ParseResult,
   SourceLocation,
   ToolParameter,
@@ -395,6 +396,14 @@ class EchoAstVisitor extends BaseCstVisitor {
   }
 
   /**
+   * Type-safe wrapper around Chevrotain's this.visit() which returns `any`.
+   */
+  private typedVisit<T>(cstNode: CstNode): T {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+    return this.visit(cstNode);
+  }
+
+  /**
    * Visit the root template rule.
    */
   template(ctx: CstTemplateContext): ASTNode[] {
@@ -402,7 +411,7 @@ class EchoAstVisitor extends BaseCstVisitor {
 
     if (ctx.node) {
       for (const nodeCtx of ctx.node) {
-        const node = this.visit(nodeCtx);
+        const node = this.typedVisit<ASTNode | undefined>(nodeCtx);
         if (node) {
           nodes.push(node);
         }
@@ -417,37 +426,37 @@ class EchoAstVisitor extends BaseCstVisitor {
    */
   node(ctx: CstNodeContext): ASTNode | undefined {
     if (ctx.textNode?.[0]) {
-      return this.visit(ctx.textNode[0]);
+      return this.typedVisit<ASTNode>(ctx.textNode[0]);
     }
     if (ctx.variableNode?.[0]) {
-      return this.visit(ctx.variableNode[0]);
+      return this.typedVisit<ASTNode>(ctx.variableNode[0]);
     }
     if (ctx.conditionalNode?.[0]) {
-      return this.visit(ctx.conditionalNode[0]);
+      return this.typedVisit<ASTNode>(ctx.conditionalNode[0]);
     }
     if (ctx.sectionNode?.[0]) {
-      return this.visit(ctx.sectionNode[0]);
+      return this.typedVisit<ASTNode>(ctx.sectionNode[0]);
     }
     if (ctx.importNode?.[0]) {
-      return this.visit(ctx.importNode[0]);
+      return this.typedVisit<ASTNode>(ctx.importNode[0]);
     }
     if (ctx.includeNode?.[0]) {
-      return this.visit(ctx.includeNode[0]);
+      return this.typedVisit<ASTNode>(ctx.includeNode[0]);
     }
     if (ctx.contextNode?.[0]) {
-      return this.visit(ctx.contextNode[0]);
+      return this.typedVisit<ASTNode>(ctx.contextNode[0]);
     }
     if (ctx.roleNode?.[0]) {
-      return this.visit(ctx.roleNode[0]);
+      return this.typedVisit<ASTNode>(ctx.roleNode[0]);
     }
     if (ctx.toolNode?.[0]) {
-      return this.visit(ctx.toolNode[0]);
+      return this.typedVisit<ASTNode>(ctx.toolNode[0]);
     }
     if (ctx.skillNode?.[0]) {
-      return this.visit(ctx.skillNode[0]);
+      return this.typedVisit<ASTNode>(ctx.skillNode[0]);
     }
     if (ctx.schemaNode?.[0]) {
-      return this.visit(ctx.schemaNode[0]);
+      return this.typedVisit<ASTNode>(ctx.schemaNode[0]);
     }
     return undefined;
   }
@@ -524,14 +533,14 @@ class EchoAstVisitor extends BaseCstVisitor {
     // Parse the main condition
     const conditionCtx = ctx.condition?.[0];
     const condition = conditionCtx
-      ? (this.visit(conditionCtx) as ConditionExpr)
+      ? this.typedVisit<ConditionExpr>(conditionCtx)
       : createConditionExpr('', 'exists');
 
     // Parse body nodes
     const consequent: ASTNode[] = [];
     if (ctx.node) {
       for (const nodeCtx of ctx.node) {
-        const node = this.visit(nodeCtx);
+        const node = this.typedVisit<ASTNode | undefined>(nodeCtx);
         if (node) {
           consequent.push(node);
         }
@@ -543,7 +552,7 @@ class EchoAstVisitor extends BaseCstVisitor {
 
     // Handle ELSE block (process first as it's the end of the chain)
     if (ctx.elseBlock?.[0]) {
-      alternate = this.visit(ctx.elseBlock[0]) as ASTNode[];
+      alternate = this.typedVisit<ASTNode[]>(ctx.elseBlock[0]);
     }
 
     // Handle ELSE IF blocks (in reverse order to build the chain)
@@ -581,13 +590,13 @@ class EchoAstVisitor extends BaseCstVisitor {
 
     const conditionCtx = children.condition?.[0];
     const condition = conditionCtx
-      ? (this.visit(conditionCtx) as ConditionExpr)
+      ? this.typedVisit<ConditionExpr>(conditionCtx)
       : createConditionExpr('', 'exists');
 
     const consequent: ASTNode[] = [];
     if (children.node) {
       for (const nodeCtx of children.node) {
-        const node = this.visit(nodeCtx);
+        const node = this.typedVisit<ASTNode | undefined>(nodeCtx);
         if (node) {
           consequent.push(node);
         }
@@ -628,7 +637,7 @@ class EchoAstVisitor extends BaseCstVisitor {
 
     if (ctx.node) {
       for (const nodeCtx of ctx.node) {
-        const node = this.visit(nodeCtx);
+        const node = this.typedVisit<ASTNode | undefined>(nodeCtx);
         if (node) {
           nodes.push(node);
         }
@@ -689,7 +698,7 @@ class EchoAstVisitor extends BaseCstVisitor {
     const body: ASTNode[] = [];
     if (ctx.node) {
       for (const nodeCtx of ctx.node) {
-        const node = this.visit(nodeCtx);
+        const node = this.typedVisit<ASTNode | undefined>(nodeCtx);
         if (node) {
           body.push(node);
         }
@@ -773,12 +782,12 @@ class EchoAstVisitor extends BaseCstVisitor {
     const endRoleToken = ctx.EndRole?.[0];
     const identifierToken = ctx.Identifier?.[0];
 
-    const role = (identifierToken?.image ?? 'user') as import('../types.js').MessageRole;
+    const role = (identifierToken?.image ?? 'user') as MessageRole;
 
     const body: ASTNode[] = [];
     if (ctx.node) {
       for (const nodeCtx of ctx.node) {
-        const node = this.visit(nodeCtx);
+        const node = this.typedVisit<ASTNode | undefined>(nodeCtx);
         if (node) {
           body.push(node);
         }

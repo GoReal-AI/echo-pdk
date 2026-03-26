@@ -35,6 +35,7 @@
 import {
   createToken,
   Lexer,
+  type ILexingResult,
   type TokenType,
   type IMultiModeLexerDefinition,
 } from 'chevrotain';
@@ -454,7 +455,7 @@ export const WhiteSpace = createToken({
  */
 export const Text = createToken({
   name: 'Text',
-  pattern: /(?:[^\[{#]|\[(?![#E])|\{(?!\{)|#(?!context\())+/,
+  pattern: /(?:[^[{#]|\[(?![#E])|\{(?!\{)|#(?!context\())+/,
   line_breaks: true,
 });
 
@@ -691,7 +692,7 @@ export const EchoLexer = new Lexer(multiModeLexerDefinition, {
  * }
  * ```
  */
-export function tokenize(template: string) {
+export function tokenize(template: string): ILexingResult {
   return EchoLexer.tokenize(template);
 }
 

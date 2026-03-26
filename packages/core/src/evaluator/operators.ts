@@ -291,6 +291,7 @@ export const aiGateOperator: OperatorDefinition = {
     trigger: '#ai',
     snippet: '#ai_gate($1)',
   },
+  // eslint-disable-next-line @typescript-eslint/require-await
   handler: async (_value: unknown, _question: unknown): Promise<boolean> => {
     // Placeholder — the real handler is injected by setupAiGateOperator()
     // in index.ts when an aiProvider is configured. This fallback throws

@@ -414,7 +414,7 @@ export function prettyPrint(ast: ASTNode[], indent = 0): string {
         break;
       case 'conditional':
         lines.push(
-          `${pad}IF: {{${node.condition.variable}}} #${node.condition.operator}(${node.condition.argument ?? ''})`
+          `${pad}IF: {{${node.condition.variable}}} #${node.condition.operator}(${String(node.condition.argument ?? '')})`
         );
         lines.push(prettyPrint(node.consequent, indent + 1));
         if (node.alternate) {

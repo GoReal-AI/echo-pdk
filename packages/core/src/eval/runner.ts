@@ -101,7 +101,7 @@ export async function runEvalSuite(
   let embeddingSimilarity: ((textA: string, textB: string) => Promise<number>) | undefined;
   if (embeddingProvider) {
     embeddingSimilarity = async (textA: string, textB: string): Promise<number> => {
-      const vectors = await embeddingProvider!.embed([textA, textB]);
+      const vectors = await embeddingProvider.embed([textA, textB]);
       return cosineSimilarity(vectors[0]!, vectors[1]!);
     };
   }
@@ -186,11 +186,10 @@ async function runSingleTest(
     }
 
     const allAssertions: AssertionResult[] = [];
-    let renderedOutput: string | undefined;
     let llmResponseText: string | undefined;
 
     // 2. Render the template
-    renderedOutput = await ctx.echo.render(ctx.template, variables);
+    const renderedOutput = await ctx.echo.render(ctx.template, variables);
 
     // 3. Run expect_render assertions
     if (test.expect_render) {

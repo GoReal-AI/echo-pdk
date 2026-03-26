@@ -142,7 +142,7 @@ export function createOpenAIProvider(config: ProviderConfig): AIProviderInstance
         toolCalls = message.tool_calls.map((tc) => ({
           id: tc.id,
           name: tc.function.name,
-          arguments: JSON.parse(tc.function.arguments),
+          arguments: JSON.parse(tc.function.arguments) as Record<string, unknown>,
         }));
       }
 

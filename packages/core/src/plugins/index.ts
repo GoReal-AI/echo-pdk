@@ -85,6 +85,7 @@ export async function loadPlugin(
  * @param registry - The plugin registry
  * @param path - Path to the plugin
  */
+// eslint-disable-next-line @typescript-eslint/require-await
 export async function loadPluginFromPath(
   _registry: PluginRegistry,
   path: string

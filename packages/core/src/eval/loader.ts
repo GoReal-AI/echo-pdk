@@ -56,7 +56,7 @@ export function parseEvalContent(content: string, source?: string): EvalSuite {
   );
 
   return {
-    suite: raw.suite as string,
+    suite: raw.suite,
     config,
     tests,
   };
@@ -87,7 +87,7 @@ function parseTest(
   }
 
   const test: EvalTest = {
-    name: raw.name as string,
+    name: raw.name,
   };
 
   if (raw.given && typeof raw.given === 'object') {
@@ -220,7 +220,7 @@ export function parseDatasetContent(content: string, source?: string): EvalDatas
   );
 
   return {
-    name: raw.name as string,
+    name: raw.name,
     description: typeof raw.description === 'string' ? raw.description : undefined,
     golden,
     parameters,

@@ -22,7 +22,7 @@
  *    - No auth required
  */
 
-import type { ContextNode, ResolvedContextContent } from '../types.js';
+import type { ASTNode, ResolvedContextContent } from '../types.js';
 
 // =============================================================================
 // TYPES
@@ -202,10 +202,10 @@ export function validateContextPath(path: string): { isValid: boolean; error?: s
  * @param ast - The AST nodes to search
  * @returns Array of unique context paths
  */
-export function collectContextPaths(ast: import('../types.js').ASTNode[]): string[] {
+export function collectContextPaths(ast: ASTNode[]): string[] {
   const paths = new Set<string>();
 
-  function walkNodes(nodes: import('../types.js').ASTNode[]): void {
+  function walkNodes(nodes: ASTNode[]): void {
     for (const node of nodes) {
       if (node.type === 'context') {
         paths.add(node.path);
@@ -238,15 +238,15 @@ export function collectContextPaths(ast: import('../types.js').ASTNode[]): strin
  * @param resolved - Map of path to resolved content
  */
 export function applyResolvedContext(
-  ast: import('../types.js').ASTNode[],
+  ast: ASTNode[],
   resolved: ContextBatchResult
 ): void {
-  function walkNodes(nodes: import('../types.js').ASTNode[]): void {
+  function walkNodes(nodes: ASTNode[]): void {
     for (const node of nodes) {
       if (node.type === 'context') {
         const result = resolved.get(node.path);
         if (result?.success && result.content) {
-          (node as ContextNode).resolvedContent = result.content;
+          node.resolvedContent = result.content;
         }
       } else if (node.type === 'conditional') {
         walkNodes(node.consequent);
@@ -288,6 +288,7 @@ export class MockContextResolver implements ContextResolver {
     this.mockData.set(path, content);
   }
 
+  // eslint-disable-next-line @typescript-eslint/require-await
   async resolve(path: string): Promise<ContextResolveResult> {
     // Validate the path first
     const validation = validateContextPath(path);

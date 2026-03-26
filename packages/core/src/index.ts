@@ -73,6 +73,7 @@ export type {
 } from './types.js';
 
 import type {
+  ASTNode,
   Echo,
   EchoConfig,
   ParseResult,
@@ -191,7 +192,7 @@ const ENV_ECHO_API_KEY = 'ECHO_API_KEY';
  * @param resolver - The context resolver
  */
 async function resolveContextNodes(
-  ast: import('./types.js').ASTNode[],
+  ast: ASTNode[],
   resolver: ContextResolver
 ): Promise<void> {
   // Collect all context paths
@@ -608,7 +609,7 @@ function setupAiGateOperator(
  * Validate the AST for semantic errors.
  */
 function validateAst(
-  ast: import('./types.js').ASTNode[],
+  ast: ASTNode[],
   errors: EchoError[],
   warnings: EchoWarning[],
   config: EchoConfig,
@@ -627,7 +628,7 @@ function validateAst(
  * Collect all section names from the AST.
  */
 function collectSectionNames(
-  nodes: import('./types.js').ASTNode[],
+  nodes: ASTNode[],
   sections: Set<string>
 ): void {
   for (const node of nodes) {
@@ -651,7 +652,7 @@ function collectSectionNames(
  * Validate AST nodes for semantic errors.
  */
 function validateNodes(
-  nodes: import('./types.js').ASTNode[],
+  nodes: ASTNode[],
   errors: EchoError[],
   warnings: EchoWarning[],
   knownSections: Set<string>,

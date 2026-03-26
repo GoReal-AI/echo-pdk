@@ -89,6 +89,7 @@ type AssertionHandler = (
   ctx: AssertionContext
 ) => Promise<AssertionResult>;
 
+/* eslint-disable @typescript-eslint/require-await -- Handlers conform to async AssertionHandler interface; some need await, some don't */
 const assertionHandlers: Record<string, AssertionHandler> = {
   // Text assertions
   contains: async (value, ctx) => {
@@ -405,6 +406,7 @@ const assertionHandlers: Record<string, AssertionHandler> = {
     };
   },
 };
+/* eslint-enable @typescript-eslint/require-await */
 
 // =============================================================================
 // HELPERS

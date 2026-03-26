@@ -6,6 +6,10 @@
  * Keep types here to maintain a single source of truth and enable easy imports.
  */
 
+import type { ProviderType as ProviderTypeRef } from './providers/types.js';
+import type { PLPClient as PLPClientRef } from '@goreal-ai/plp-client';
+import type { ContextResolver as ContextResolverRef } from './context/resolver.js';
+
 // =============================================================================
 // SOURCE LOCATION (for error messages)
 // =============================================================================
@@ -328,7 +332,7 @@ export interface OperatorDefinition {
  */
 export interface AIProviderConfig {
   /** The provider type */
-  type: import('./providers/types.js').ProviderType;
+  type: ProviderTypeRef;
   /** API key (can also be set via ECHO_AI_API_KEY env var) */
   apiKey: string;
   /** Model to use (defaults to provider's default) */
@@ -368,7 +372,7 @@ export interface AIProviderConfig {
  */
 export interface PlpConfig {
   /** Pre-configured PLPClient instance (preferred) */
-  client?: import('@goreal-ai/plp-client').PLPClient;
+  client?: PLPClientRef;
   /** The PLP server URL (e.g., 'https://api.echostash.com') - required if client not provided */
   serverUrl?: string;
   /** Authentication token or API key - required if client not provided */
@@ -392,7 +396,7 @@ export interface EchoConfig {
   /** Language definition file path */
   languagePath?: string;
   /** Context resolver for #context() directives (overrides plp config if both provided) */
-  contextResolver?: import('./context/resolver.js').ContextResolver;
+  contextResolver?: ContextResolverRef;
 }
 
 // =============================================================================

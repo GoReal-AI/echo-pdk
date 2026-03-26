@@ -31,3 +31,6 @@ pnpm-debug.log*
 
 # OS
 Thumbs.db
+
+# Scratch
+playground.ts

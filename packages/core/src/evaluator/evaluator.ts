@@ -20,9 +20,7 @@ import type {
   ConditionalNode,
   ConditionExpr,
   EchoConfig,
-  IncludeNode,
   OperatorDefinition,
-  SectionNode,
 } from '../types.js';
 import { collectAiJudgeConditions } from '../parser/ast.js';
 import { getOperator } from './operators.js';
@@ -404,15 +402,14 @@ async function evaluateNode(
 
     case 'include': {
       // Include handling: inline the section content
-      const includeNode = node as IncludeNode;
-      const sectionContent = ctx.sections.get(includeNode.name);
+      const sectionContent = ctx.sections.get(node.name);
       if (sectionContent) {
         // Recursively evaluate the section content
         return evaluateNodes(sectionContent, ctx);
       }
       // Section not found - pass through and let renderer warn
       if (ctx.config.strict) {
-        throw new Error(`Section not found: ${includeNode.name}`);
+        throw new Error(`Section not found: ${node.name}`);
       }
       return [];
     }
@@ -486,18 +483,16 @@ function collectSections(
 ): void {
   for (const node of nodes) {
     if (node.type === 'section') {
-      const sectionNode = node as SectionNode;
-      sections.set(sectionNode.name, sectionNode.body);
+      sections.set(node.name, node.body);
       // Also scan inside the section for nested sections
-      collectSections(sectionNode.body, sections);
+      collectSections(node.body, sections);
     } else if (node.type === 'conditional') {
-      const conditionalNode = node as ConditionalNode;
-      collectSections(conditionalNode.consequent, sections);
-      if (conditionalNode.alternate) {
-        if (Array.isArray(conditionalNode.alternate)) {
-          collectSections(conditionalNode.alternate, sections);
+      collectSections(node.consequent, sections);
+      if (node.alternate) {
+        if (Array.isArray(node.alternate)) {
+          collectSections(node.alternate, sections);
         } else {
-          collectSections([conditionalNode.alternate], sections);
+          collectSections([node.alternate], sections);
         }
       }
     }
@@ -573,6 +568,6 @@ export function createEvaluationContext(options: {
     aiJudgeResults: new Map(),
     config: options.config ?? {},
     sections: new Map(),
-    operators: options.operators ?? new Map(),
+    operators: options.operators ?? new Map<string, OperatorDefinition>(),
   };
 }
