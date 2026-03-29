@@ -220,6 +220,8 @@ export function collectContextPaths(ast: ASTNode[]): string[] {
         }
       } else if (node.type === 'section') {
         walkNodes(node.body);
+      } else if (node.type === 'role') {
+        walkNodes((node as { body: ASTNode[] }).body);
       }
     }
   }
@@ -259,6 +261,8 @@ export function applyResolvedContext(
         }
       } else if (node.type === 'section') {
         walkNodes(node.body);
+      } else if (node.type === 'role') {
+        walkNodes((node as { body: ASTNode[] }).body);
       }
     }
   }

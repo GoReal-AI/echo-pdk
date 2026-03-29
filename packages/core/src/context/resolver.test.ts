@@ -12,6 +12,7 @@ import {
   MockContextResolver,
 } from './resolver.js';
 import { parse } from '../parser/parser.js';
+import { createEcho } from '../index.js';
 
 describe('validateContextPath', () => {
   describe('valid paths', () => {
@@ -241,5 +242,136 @@ describe('MockContextResolver', () => {
     expect(results.get('a')?.success).toBe(true);
     expect(results.get('b')?.success).toBe(true);
     expect(results.get('c')?.success).toBe(false);
+  });
+});
+
+describe('context inside role blocks', () => {
+  describe('collectContextPaths', () => {
+    it('should find context nodes inside a role block', () => {
+      const template = '[#ROLE user]\nDescribe this:\n#context(hero-image)\n[END ROLE]';
+      const result = parse(template);
+      expect(result.success).toBe(true);
+      if (result.ast) {
+        const paths = collectContextPaths(result.ast);
+        expect(paths).toEqual(['hero-image']);
+      }
+    });
+
+    it('should find context nodes across multiple role blocks', () => {
+      const template =
+        '[#ROLE system]\nContext: #context(system-doc)\n[END ROLE]\n' +
+        '[#ROLE user]\nSee: #context(user-image)\n[END ROLE]';
+      const result = parse(template);
+      expect(result.success).toBe(true);
+      if (result.ast) {
+        const paths = collectContextPaths(result.ast);
+        expect(paths).toContain('system-doc');
+        expect(paths).toContain('user-image');
+        expect(paths).toHaveLength(2);
+      }
+    });
+
+    it('should find context nodes nested in conditionals inside role blocks', () => {
+      const template =
+        '[#ROLE user]\n' +
+        '[#IF {{show}} #exists]\n#context(conditional-image)\n[END IF]\n' +
+        '[END ROLE]';
+      const result = parse(template);
+      expect(result.success).toBe(true);
+      if (result.ast) {
+        const paths = collectContextPaths(result.ast);
+        expect(paths).toEqual(['conditional-image']);
+      }
+    });
+  });
+
+  describe('applyResolvedContext', () => {
+    it('should apply resolved content to context nodes inside role blocks', () => {
+      const template = '[#ROLE user]\nImage: #context(logo)\n[END ROLE]';
+      const result = parse(template);
+      expect(result.success).toBe(true);
+      if (result.ast) {
+        const resolved = new Map([
+          ['logo', {
+            success: true,
+            content: {
+              mimeType: 'image/png',
+              dataUrl: 'data:image/png;base64,abc123',
+            },
+          }],
+        ]);
+
+        applyResolvedContext(result.ast, resolved);
+
+        // Find the context node inside the role block
+        const roleNode = result.ast.find(n => n.type === 'role');
+        expect(roleNode).toBeDefined();
+        if (roleNode && roleNode.type === 'role') {
+          const contextNode = roleNode.body.find(n => n.type === 'context');
+          expect(contextNode).toBeDefined();
+          if (contextNode && contextNode.type === 'context') {
+            expect(contextNode.resolvedContent).toBeDefined();
+            expect(contextNode.resolvedContent?.mimeType).toBe('image/png');
+            expect(contextNode.resolvedContent?.dataUrl).toBe('data:image/png;base64,abc123');
+          }
+        }
+      }
+    });
+  });
+
+  describe('integration: renderMessages with context in role blocks', () => {
+    it('should produce image_url content blocks for context inside role blocks', async () => {
+      const resolver = new MockContextResolver({
+        'plp://test-image': {
+          mimeType: 'image/png',
+          dataUrl: 'data:image/png;base64,iVBORw0KGgo=',
+        },
+      });
+
+      const echo = createEcho({ contextResolver: resolver });
+      const result = await echo.renderMessages(
+        '[#ROLE system]\nYou are helpful.\n[END ROLE]\n[#ROLE user]\nDescribe this image:\n#context(plp://test-image)\n[END ROLE]',
+        {}
+      );
+
+      // Should have two messages: system and user
+      expect(result.messages).toHaveLength(2);
+      expect(result.messages[0].role).toBe('system');
+      expect(result.messages[1].role).toBe('user');
+
+      // The user message should contain an image_url block
+      const userContent = result.messages[1].content;
+      const imageBlock = userContent.find(b => b.type === 'image_url');
+      expect(imageBlock).toBeDefined();
+      if (imageBlock && imageBlock.type === 'image_url') {
+        expect(imageBlock.image_url.url).toBe('data:image/png;base64,iVBORw0KGgo=');
+      }
+    });
+
+    it('should produce text-only blocks when context has text content inside role blocks', async () => {
+      const resolver = new MockContextResolver({
+        'plp://readme': {
+          mimeType: 'text/plain',
+          text: 'This is the readme content.',
+        },
+      });
+
+      const echo = createEcho({ contextResolver: resolver });
+      const result = await echo.renderMessages(
+        '[#ROLE user]\nRead this:\n#context(plp://readme)\n[END ROLE]',
+        {}
+      );
+
+      expect(result.messages).toHaveLength(1);
+      expect(result.messages[0].role).toBe('user');
+
+      // All blocks should be text
+      const textBlocks = result.messages[0].content.filter(b => b.type === 'text');
+      expect(textBlocks.length).toBeGreaterThan(0);
+
+      // The text content should include the resolved text
+      const fullText = textBlocks.map(b => b.type === 'text' ? b.text : '').join('');
+      expect(fullText).toContain('This is the readme content.');
+    });
   });
 });
